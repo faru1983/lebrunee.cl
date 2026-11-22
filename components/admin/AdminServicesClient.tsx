@@ -9,6 +9,7 @@ import {
   upsertAddonAction,
   upsertServiceAction,
 } from "@/app/actions/adminActions";
+import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
 import type { ServiceAddon, ServiceCategory, ServiceItem } from "@/lib/types";
 import { formatClp } from "@/lib/utils";
@@ -386,13 +387,11 @@ export function AdminServicesClient({
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="min-h-12 w-full rounded-full bg-[var(--brand-primary)] text-sm font-semibold text-white"
-            >
-              {busy ? "Guardando..." : "Guardar servicio"}
-            </button>
+            <SaveButton
+              fullWidth
+              busy={busy}
+              label="Guardar servicio"
+            />
           </form>
         )}
       </ModalDialog>
@@ -497,13 +496,11 @@ export function AdminServicesClient({
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="min-h-12 w-full rounded-full bg-[var(--brand-primary)] text-sm font-semibold text-white"
-            >
-              {busy ? "Guardando..." : "Guardar adicional"}
-            </button>
+            <SaveButton
+              fullWidth
+              busy={busy}
+              label="Guardar adicional"
+            />
           </form>
         )}
       </ModalDialog>

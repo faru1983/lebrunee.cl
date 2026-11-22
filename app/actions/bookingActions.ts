@@ -9,6 +9,7 @@ import {
 import { getActiveBusinessBundle } from "@/lib/services/businessService";
 import {
   createBookingCore,
+  getVerifiedClientProfile,
   rescheduleClientAppointmentCore,
 } from "@/lib/services/bookingService";
 import { sendBusinessEmail } from "@/lib/services/emailService";
@@ -112,6 +113,32 @@ export async function createPublicBookingAction(rawInput: unknown) {
       error: err instanceof Error ? err.message : "No se pudo completar tu reserva.",
     };
   }
+}
+
+export async function getVerifiedClientProfileAction() {
+  if (!hasValidServiceRoleKey()) {
+    return { success: false as const, profile: null };
+  }
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) {
+    return { success: false as const, profile: null };
+  }
+
+  const bundle = await getActiveBusinessBundle();
+  const profile = await getVerifiedClientProfile({
+    businessId: bundle.business.id,
+    authUserId: user.id,
+    email: user.email,
+  });
+
+  return {
+    success: true as const,
+    email: normalizeEmail(user.email),
+    profile,
+  };
 }
 
 export async function linkClientSessionAction() {

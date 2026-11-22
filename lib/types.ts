@@ -161,6 +161,16 @@ export interface ClientNoteRecord {
   created_at: string;
 }
 
+export interface VerifiedClientProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  birthDate: string;
+  instagramHandle: string;
+  isNewClient: boolean;
+}
+
 export interface ClientSummaryRecord {
   id: string;
   first_name: string;

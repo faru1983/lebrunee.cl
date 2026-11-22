@@ -20,7 +20,11 @@ export default async function AdminLayout({
 
   // If authenticated admin lands on login, AdminShell isn't needed if page redirects,
   // but wrapping protected pages here is clean and consistent.
-  if (pathname.includes("/admin/login") || pathname.includes("/admin/setup")) {
+  if (
+    pathname.includes("/admin/login") ||
+    pathname.includes("/admin/setup") ||
+    pathname.includes("/admin/reset-password")
+  ) {
     return <>{children}</>;
   }
 

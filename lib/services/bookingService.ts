@@ -11,6 +11,7 @@ import type {
   AppointmentRecord,
   CreateAdminAppointmentSchema,
   CreatePublicBookingSchema,
+  VerifiedClientProfile,
 } from "@/lib/types";
 import {
   buildWhatsAppUrl,
@@ -29,6 +30,47 @@ function generateBookingCode(businessName: string): string {
   const letters = businessName.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "BK";
   const num = randomInt(1000, 9999);
   return `${letters}-${num}`;
+}
+
+/**
+ * Busca la ficha de una clienta autenticada (por auth_user_id o email verificado)
+ * y vincula su auth_user_id si aún no estaba asociado.
+ */
+export async function getVerifiedClientProfile(params: {
+  businessId: string;
+  authUserId: string;
+  email: string;
+}): Promise<VerifiedClientProfile | null> {
+  const admin = createSupabaseAdminClient();
+  const cleanEmail = normalizeEmail(params.email);
+
+  await admin
+    .from("clients")
+    .update({ auth_user_id: params.authUserId, updated_at: new Date().toISOString() })
+    .eq("business_id", params.businessId)
+    .eq("email", cleanEmail)
+    .is("auth_user_id", null);
+
+  const { data: client } = await admin
+    .from("clients")
+    .select(
+      "id, first_name, last_name, email, phone, birth_date, instagram_handle, is_new_client"
+    )
+    .eq("business_id", params.businessId)
+    .or(`auth_user_id.eq.${params.authUserId},email.eq.${cleanEmail}`)
+    .maybeSingle();
+
+  if (!client) return null;
+
+  return {
+    firstName: client.first_name || "",
+    lastName: client.last_name || "",
+    email: cleanEmail,
+    phone: client.phone || "+56 9 ",
+    birthDate: client.birth_date || "",
+    instagramHandle: client.instagram_handle || "",
+    isNewClient: false,
+  };
 }
 
 export async function createBookingCore(params: {
@@ -122,7 +164,7 @@ export async function createBookingCore(params: {
 
   const { data: existingClient } = await admin
     .from("clients")
-    .select("id, auth_user_id, birth_date")
+    .select("id, auth_user_id, birth_date, instagram_handle")
     .eq("business_id", businessId)
     .eq("email", email)
     .maybeSingle();
@@ -136,7 +178,7 @@ export async function createBookingCore(params: {
         first_name: firstName,
         last_name: lastName || null,
         phone,
-        instagram_handle: cleanIg,
+        instagram_handle: cleanIg || existingClient.instagram_handle || null,
         birth_date: birthDate || existingClient.birth_date || null,
         auth_user_id: existingClient.auth_user_id || authUserId,
         updated_at: new Date().toISOString(),

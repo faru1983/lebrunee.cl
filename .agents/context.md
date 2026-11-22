@@ -10,6 +10,13 @@
 
 ## Últimos Cambios
 
+### 22-11-2026 — Verificación previa de correo y precarga de ficha en `/reservar`
+- **Flujo OTP primero + Carga automática de ficha:** En `/reservar` (`BookingWizard.tsx`, `app/reservar/page.tsx`), cuando `requireClientOtp` está activo, el Paso 3 ahora solicita primero el correo y el código OTP de 6 dígitos; al validarse (o si ya existe sesión SSR activa), `getVerifiedClientProfile` (`lib/services/bookingService.ts`) + `getVerifiedClientProfileAction` (`app/actions/bookingActions.ts`) cargan automáticamente nombre, apellidos, WhatsApp, cumpleaños e Instagram desde `clients` con resumen editable en 1 toque.
+- **Preservación de Instagram:** `createBookingCore` conserva `instagram_handle` previo si el campo viene vacío al actualizar una clienta existente.
+
+### 22-11-2026 — Recuperación de contraseña en Admin
+- **Login & Callback Auth:** Agregada opción *"¿Olvidaste tu contraseña?"* en `/admin/login` (`AdminLoginForm.tsx`), ruta `/auth/callback` (`app/auth/callback/route.ts`) para `exchangeCodeForSession`/`verifyOtp`, y pantalla `/admin/reset-password` (`AdminResetPasswordForm.tsx`) habilitada en `proxy.ts` y `app/admin/layout.tsx`.
+
 ### 22-11-2026 — Cumpleaños, Nombre/Apellido separado, URL Tabs y Orden Ajustes/Comunicaciones
 - **Migración `phase3_birthday_and_templates`**: agregada columna `clients.birth_date` (`DATE`), tabla `client_birthday_logs` con restricción anual por canal (`UNIQUE (business_id, client_id, birthday_year, channel)`) + RLS, regla `birthday_rules` en `business_settings` y plantilla `birthday_gift`.
 - **Formularios con Nombre + Apellidos + Cumpleaños opcional**: `/reservar`, modal manual en Admin, `/mi-cuenta` y detalle CRM `/admin/clients/[id]` solicitan `firstName`, `lastName` y `birth_date` (`Día + Mes + Año` con `autoComplete`).

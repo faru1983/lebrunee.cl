@@ -5,7 +5,8 @@ import {
   getActiveBusinessBundle,
   getPublicCatalog,
 } from "@/lib/services/businessService";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getVerifiedClientProfile } from "@/lib/services/bookingService";
+import { createSupabaseServerClient, hasValidServiceRoleKey } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,15 @@ export default async function ReservarPage({
     data: { user },
   } = await supabase.auth.getUser();
 
+  const initialClientProfile =
+    user?.email && hasValidServiceRoleKey()
+      ? await getVerifiedClientProfile({
+          businessId: bundle.business.id,
+          authUserId: user.id,
+          email: user.email,
+        })
+      : null;
+
   return (
     <>
       <SiteHeader
@@ -36,6 +46,7 @@ export default async function ReservarPage({
           staff={catalog.staff}
           initialServiceId={params.service}
           initialVerifiedEmail={user?.email || null}
+          initialClientProfile={initialClientProfile}
         />
       </main>
       <SiteFooter

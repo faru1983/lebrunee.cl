@@ -34,7 +34,9 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAdminRoute = pathname.startsWith("/admin");
   const isPublicAdminRoute =
-    pathname === "/admin/login" || pathname === "/admin/setup";
+    pathname === "/admin/login" ||
+    pathname === "/admin/setup" ||
+    pathname === "/admin/reset-password";
 
   if (isAdminRoute && !isPublicAdminRoute && !user) {
     const loginUrl = request.nextUrl.clone();

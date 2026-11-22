@@ -15,6 +15,7 @@ import {
   deleteExpenseAction,
   recordDirectSaleAction,
 } from "@/app/actions/crmFinanceActions";
+import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
 import type {
   ExpenseRecord,
@@ -415,13 +416,11 @@ export function AdminFinanzasClient({
               </select>
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={busy}
-            className="min-h-11 w-full rounded-full bg-[var(--brand-primary)] text-sm font-semibold text-white"
-          >
-            {busy ? "Guardando..." : "Registrar ingreso"}
-          </button>
+          <SaveButton
+            fullWidth
+            busy={busy}
+            label="Registrar ingreso"
+          />
         </form>
       </ModalDialog>
 
@@ -498,13 +497,12 @@ export function AdminFinanzasClient({
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="min-h-11 w-full rounded-full bg-[#1f141b] text-sm font-semibold text-white"
-          >
-            {busy ? "Guardando..." : "Guardar gasto"}
-          </button>
+          <SaveButton
+            fullWidth
+            variant="dark"
+            busy={busy}
+            label="Guardar gasto"
+          />
         </form>
       </ModalDialog>
     </div>

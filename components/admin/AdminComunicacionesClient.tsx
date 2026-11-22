@@ -9,10 +9,9 @@ import {
   History,
   Mail,
   MessageCircle,
-  Save,
-  Send,
   Sparkles,
 } from "lucide-react";
+import { SaveButton } from "@/components/ui/SaveButton";
 import { saveEmailTemplateAction } from "@/app/actions/adminActions";
 import {
   logBirthdayWhatsappAction,
@@ -181,8 +180,20 @@ export function AdminComunicacionesClient({
   );
 
   const [busy, setBusy] = useState(false);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [lastSavedKey, setLastSavedKey] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  function notifyOk(msg: string, savedKey: string) {
+    setErrorMsg(null);
+    setToast(msg);
+    setLastSavedKey(savedKey);
+    window.setTimeout(() => {
+      setLastSavedKey((cur) => (cur === savedKey ? null : cur));
+    }, 3000);
+    router.refresh();
+  }
 
   const nonTransactionalCap = Math.max(0, dailyEmailLimit - transactionalReserve);
   const pctUsed = Math.min(100, Math.round((sentToday / Math.max(1, dailyEmailLimit)) * 100));
@@ -190,6 +201,7 @@ export function AdminComunicacionesClient({
   async function saveCitasConfig(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("citas");
     setErrorMsg(null);
     setToast(null);
     try {
@@ -202,16 +214,17 @@ export function AdminComunicacionesClient({
         const r2 = await saveEmailTemplateAction(reminderDraft);
         if (!r2.success) return setErrorMsg(r2.error);
       }
-      setToast("Recordatorios de citas actualizados.");
-      router.refresh();
+      notifyOk("Recordatorios de citas actualizados.", "citas");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function saveRetentionConfig(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("mantencion");
     setErrorMsg(null);
     setToast(null);
     try {
@@ -223,16 +236,17 @@ export function AdminComunicacionesClient({
         if (!r2.success) return setErrorMsg(r2.error);
       }
 
-      setToast("Regla de recordatorio de mantención guardada.");
-      router.refresh();
+      notifyOk("Regla de recordatorio de mantención guardada.", "mantencion");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function saveBirthdayConfig(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("cumpleanos");
     setErrorMsg(null);
     setToast(null);
     try {
@@ -244,10 +258,10 @@ export function AdminComunicacionesClient({
         if (!r2.success) return setErrorMsg(r2.error);
       }
 
-      setToast("Automatización de regalo de cumpleaños guardada.");
-      router.refresh();
+      notifyOk("Automatización de regalo de cumpleaños guardada.", "cumpleanos");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -257,15 +271,16 @@ export function AdminComunicacionesClient({
       return;
     }
     setBusy(true);
+    setSavingKey("batch-mantencion");
     setErrorMsg(null);
     setToast(null);
     try {
       const res = await sendRetentionEmailBatchAction();
       if (!res.success) return setErrorMsg(res.error);
-      setToast(res.message);
-      router.refresh();
+      notifyOk(res.message, "batch-mantencion");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -275,15 +290,16 @@ export function AdminComunicacionesClient({
       return;
     }
     setBusy(true);
+    setSavingKey("batch-cumpleanos");
     setErrorMsg(null);
     setToast(null);
     try {
       const res = await sendBirthdayEmailBatchAction();
       if (!res.success) return setErrorMsg(res.error);
-      setToast(res.message);
-      router.refresh();
+      notifyOk(res.message, "batch-cumpleanos");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -416,14 +432,12 @@ export function AdminComunicacionesClient({
             />
           )}
 
-          <button
-            type="submit"
+          <SaveButton
+            busy={savingKey === "citas"}
+            saved={lastSavedKey === "citas"}
             disabled={busy}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-          >
-            <Save className="h-4 w-4" />
-            <span>Guardar recordatorio de citas</span>
-          </button>
+            label="Guardar recordatorio de citas"
+          />
         </form>
       )}
 
@@ -509,14 +523,12 @@ export function AdminComunicacionesClient({
               />
             )}
 
-            <button
-              type="submit"
+            <SaveButton
+              busy={savingKey === "mantencion"}
+              saved={lastSavedKey === "mantencion"}
               disabled={busy}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-            >
-              <Save className="h-4 w-4" />
-              <span>Guardar configuración</span>
-            </button>
+              label="Guardar configuración"
+            />
           </form>
 
           <section className="space-y-3 rounded-3xl border border-[#eedbe4] bg-white p-5">
@@ -530,15 +542,18 @@ export function AdminComunicacionesClient({
                 </p>
               </div>
               {candidates.length > 0 && (
-                <button
+                <SaveButton
                   type="button"
+                  variant="dark"
+                  icon="send"
+                  busy={savingKey === "batch-mantencion"}
+                  saved={lastSavedKey === "batch-mantencion"}
                   disabled={busy}
                   onClick={runRetentionBatchNow}
-                  className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#1f141b] px-4 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Enviar lote por correo</span>
-                </button>
+                  label="Enviar lote por correo"
+                  busyLabel="Enviando..."
+                  savedLabel="¡Lote enviado!"
+                />
               )}
             </div>
 
@@ -670,14 +685,12 @@ export function AdminComunicacionesClient({
               />
             )}
 
-            <button
-              type="submit"
+            <SaveButton
+              busy={savingKey === "cumpleanos"}
+              saved={lastSavedKey === "cumpleanos"}
               disabled={busy}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-            >
-              <Save className="h-4 w-4" />
-              <span>Guardar regla de cumpleaños</span>
-            </button>
+              label="Guardar regla de cumpleaños"
+            />
           </form>
 
           {/* Elegibles hoy */}
@@ -692,15 +705,18 @@ export function AdminComunicacionesClient({
                 </p>
               </div>
               {birthdayDueToday.length > 0 && (
-                <button
+                <SaveButton
                   type="button"
+                  variant="dark"
+                  icon="send"
+                  busy={savingKey === "batch-cumpleanos"}
+                  saved={lastSavedKey === "batch-cumpleanos"}
                   disabled={busy}
                   onClick={runBirthdayBatchNow}
-                  className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#1f141b] px-4 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Enviar regalos por correo</span>
-                </button>
+                  label="Enviar regalos por correo"
+                  busyLabel="Enviando..."
+                  savedLabel="¡Regalos enviados!"
+                />
               )}
             </div>
 

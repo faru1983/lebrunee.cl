@@ -21,6 +21,7 @@ import {
   rescheduleClientAppointmentAction,
   updateClientBirthDateAction,
 } from "@/app/actions/bookingActions";
+import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
@@ -378,13 +379,13 @@ export function ClientPortal({
               className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm sm:max-w-xs"
             />
           </div>
-          <button
-            type="submit"
-            disabled={savingBday || !birthDateInput}
-            className="min-h-11 shrink-0 rounded-full border border-[var(--brand-primary)] px-5 text-xs font-semibold text-[var(--brand-primary)] disabled:opacity-50"
-          >
-            {savingBday ? "Guardando..." : "Guardar cumpleaños"}
-          </button>
+          <SaveButton
+            variant="secondary"
+            busy={savingBday}
+            disabled={!birthDateInput}
+            label="Guardar cumpleaños"
+            className="shrink-0"
+          />
         </form>
       )}
 

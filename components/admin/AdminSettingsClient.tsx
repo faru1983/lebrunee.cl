@@ -7,13 +7,14 @@ import {
   ArrowRight,
   Building2,
   CreditCard,
+  Loader2,
   Mail,
   MapPin,
-  Save,
   Send,
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { SaveButton } from "@/components/ui/SaveButton";
 import {
   createBusinessMemberAction,
   saveEmailTemplateAction,
@@ -75,6 +76,9 @@ export function AdminSettingsClient({
     }
   }
   const [busy, setBusy] = useState(false);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [lastSavedKey, setLastSavedKey] = useState<string | null>(null);
+  const [testingEmail, setTestingEmail] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -108,15 +112,22 @@ export function AdminSettingsClient({
   const [newMemberRole, setNewMemberRole] = useState<"admin" | "staff">("admin");
   const [myNewPassword, setMyNewPassword] = useState("");
 
-  function notifyOk(msg: string) {
+  function notifyOk(msg: string, savedKey?: string) {
     setErrorMsg(null);
     setToast(msg);
+    if (savedKey) {
+      setLastSavedKey(savedKey);
+      window.setTimeout(() => {
+        setLastSavedKey((cur) => (cur === savedKey ? null : cur));
+      }, 3000);
+    }
     router.refresh();
   }
 
   async function saveBrandTab(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("marca");
     try {
       const r1 = await saveSettingsSectionAction({
         businessProfile: { name: bizName, tagline: bizTagline },
@@ -131,15 +142,17 @@ export function AdminSettingsClient({
       });
       if (!r1.success) return setErrorMsg(r1.error);
       if (!r2.success) return setErrorMsg(r2.error);
-      notifyOk("Marca y textos de la landing actualizados.");
+      notifyOk("Marca y textos de la landing actualizados.", "marca");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function saveLocationTab(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("ubicacion");
     try {
       const r1 = await saveSettingsSectionAction({
         category: "landing",
@@ -153,15 +166,17 @@ export function AdminSettingsClient({
       });
       if (!r1.success) return setErrorMsg(r1.error);
       if (!r2.success) return setErrorMsg(r2.error);
-      notifyOk("Ubicación pública, dirección privada y contacto guardados.");
+      notifyOk("Ubicación pública, dirección privada y contacto guardados.", "ubicacion");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function saveBankTab(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("banco");
     try {
       const r1 = await saveSettingsSectionAction({
         category: "payment",
@@ -175,15 +190,17 @@ export function AdminSettingsClient({
       });
       if (!r1.success) return setErrorMsg(r1.error);
       if (!r2.success) return setErrorMsg(r2.error);
-      notifyOk("Datos bancarios y políticas guardadas.");
+      notifyOk("Datos bancarios y políticas guardadas.", "banco");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function saveResendTab(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("resend");
     try {
       const r1 = await saveResendIntegrationAction({
         isEnabled: resendEnabled,
@@ -194,22 +211,23 @@ export function AdminSettingsClient({
       });
       if (!r1.success) return setErrorMsg(r1.error);
       setResendApiKey("");
-      notifyOk("Configuración de Resend guardada.");
+      notifyOk("Configuración de Resend guardada.", "resend");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function handleTestEmail() {
     if (!testEmailTo) return;
-    setBusy(true);
+    setTestingEmail(true);
     setErrorMsg(null);
     try {
       const res = await sendTestEmailAction(testEmailTo);
       if (!res.ok) setErrorMsg(res.message);
-      else notifyOk(res.message);
+      else notifyOk(res.message, "test-email");
     } finally {
-      setBusy(false);
+      setTestingEmail(false);
     }
   }
 
@@ -219,21 +237,24 @@ export function AdminSettingsClient({
       return setErrorMsg("Tu nueva contraseña debe tener mínimo 8 caracteres.");
     }
     setBusy(true);
+    setSavingKey("password");
     setErrorMsg(null);
     try {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.updateUser({ password: myNewPassword });
       if (error) return setErrorMsg(error.message);
       setMyNewPassword("");
-      notifyOk("Tu contraseña ha sido actualizada.");
+      notifyOk("Tu contraseña ha sido actualizada.", "password");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
   async function handleCreateMember(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("new-member");
     setErrorMsg(null);
     try {
       const res = await createBusinessMemberAction({
@@ -246,9 +267,10 @@ export function AdminSettingsClient({
       setNewMemberName("");
       setNewMemberEmail("");
       setNewMemberPass("");
-      notifyOk("Perfil creado correctamente.");
+      notifyOk("Perfil creado correctamente.", "new-member");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -447,14 +469,12 @@ export function AdminSettingsClient({
             </div>
           </div>
 
-          <button
-            type="submit"
+          <SaveButton
+            busy={savingKey === "marca"}
+            saved={lastSavedKey === "marca"}
             disabled={busy}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-          >
-            <Save className="h-4 w-4" />
-            <span>Guardar Marca y Landing</span>
-          </button>
+            label="Guardar Marca y Landing"
+          />
         </form>
       )}
 
@@ -540,14 +560,12 @@ export function AdminSettingsClient({
             </div>
           </div>
 
-          <button
-            type="submit"
+          <SaveButton
+            busy={savingKey === "ubicacion"}
+            saved={lastSavedKey === "ubicacion"}
             disabled={busy}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-          >
-            <Save className="h-4 w-4" />
-            <span>Guardar Ubicación y Contacto</span>
-          </button>
+            label="Guardar Ubicación y Contacto"
+          />
         </form>
       )}
 
@@ -703,14 +721,12 @@ export function AdminSettingsClient({
             </div>
           </div>
 
-          <button
-            type="submit"
+          <SaveButton
+            busy={savingKey === "banco"}
+            saved={lastSavedKey === "banco"}
             disabled={busy}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-          >
-            <Save className="h-4 w-4" />
-            <span>Guardar Banco y Políticas</span>
-          </button>
+            label="Guardar Banco y Políticas"
+          />
         </form>
       )}
 
@@ -797,14 +813,12 @@ export function AdminSettingsClient({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-t border-[#f3e5ec] pt-4">
-              <button
-                type="submit"
+              <SaveButton
+                busy={savingKey === "resend"}
+                saved={lastSavedKey === "resend"}
                 disabled={busy}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-              >
-                <Save className="h-4 w-4" />
-                <span>Guardar Resend</span>
-              </button>
+                label="Guardar Resend"
+              />
 
               <div className="flex flex-1 items-center gap-2">
                 <input
@@ -816,12 +830,17 @@ export function AdminSettingsClient({
                 />
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={testingEmail || busy}
+                  aria-busy={testingEmail || undefined}
                   onClick={handleTestEmail}
-                  className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-[#e2cbd7] px-4 text-xs font-semibold"
+                  className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-[#d9bccb] bg-white px-4 text-xs font-semibold text-[#1f141b] shadow-[0_2px_0_0_#e5cad8] transition-all hover:-translate-y-0.5 hover:bg-[#fdf5f9] active:translate-y-0.5 active:shadow-none disabled:cursor-wait disabled:opacity-60"
                 >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Probar</span>
+                  {testingEmail ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  <span>{testingEmail ? "Enviando..." : "Probar"}</span>
                 </button>
               </div>
             </div>
@@ -905,28 +924,32 @@ export function AdminSettingsClient({
                     }
                     className="w-full rounded-xl border border-[#e2cbd7] p-2.5 text-xs"
                   />
-                  <button
+                  <SaveButton
                     type="button"
+                    variant="secondary"
+                    busy={savingKey === tpl.id}
+                    saved={lastSavedKey === tpl.id}
                     disabled={busy}
+                    label="Guardar plantilla"
                     onClick={async () => {
                       setBusy(true);
+                      setSavingKey(tpl.id);
                       try {
-                        await saveEmailTemplateAction({
+                        const res = await saveEmailTemplateAction({
                           id: tpl.id,
                           subject: tpl.subject,
                           heading: tpl.heading,
                           bodyText: tpl.body_text,
                           isActive: tpl.is_active,
                         });
-                        notifyOk(`Plantilla "${tpl.name}" guardada.`);
+                        if (!res.success) return setErrorMsg(res.error);
+                        notifyOk(`Plantilla "${tpl.name}" guardada.`, tpl.id);
                       } finally {
                         setBusy(false);
+                        setSavingKey(null);
                       }
                     }}
-                    className="min-h-9 rounded-full border border-[var(--brand-primary)] px-4 text-xs font-semibold text-[var(--brand-primary)]"
-                  >
-                    Guardar plantilla
-                  </button>
+                  />
                 </div>
               ))}
           </div>
@@ -973,13 +996,15 @@ export function AdminSettingsClient({
                 onChange={(e) => setMyNewPassword(e.target.value)}
                 className="min-h-11 flex-1 rounded-xl border border-[#e2cbd7] px-3 text-sm"
               />
-              <button
-                type="submit"
+              <SaveButton
+                variant="secondary"
+                busy={savingKey === "password"}
+                saved={lastSavedKey === "password"}
                 disabled={busy}
-                className="min-h-11 shrink-0 rounded-full border border-[var(--brand-primary)] px-5 text-xs font-semibold text-[var(--brand-primary)]"
-              >
-                Actualizar mi clave
-              </button>
+                label="Actualizar mi clave"
+                busyLabel="Actualizando..."
+                className="shrink-0"
+              />
             </div>
           </form>
 
@@ -1066,13 +1091,15 @@ export function AdminSettingsClient({
                   <option value="staff">Manicurista (agenda propia)</option>
                 </select>
               </div>
-              <button
-                type="submit"
+              <SaveButton
+                busy={savingKey === "new-member"}
+                saved={lastSavedKey === "new-member"}
                 disabled={busy}
-                className="min-h-11 rounded-full bg-[var(--brand-primary)] px-6 text-xs font-semibold text-white"
-              >
-                Crear perfil
-              </button>
+                icon="plus"
+                label="Crear perfil"
+                busyLabel="Creando..."
+                savedLabel="¡Perfil creado!"
+              />
             </form>
           )}
           </div>

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarOff, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarOff, Plus, Trash2 } from "lucide-react";
+import { SaveButton } from "@/components/ui/SaveButton";
 import {
   addAvailabilityExceptionAction,
   deleteAvailabilityExceptionAction,
@@ -73,6 +74,7 @@ export function AdminScheduleClient({
   const [excReason, setExcReason] = useState("");
 
   const [busy, setBusy] = useState(false);
+  const [savedSchedule, setSavedSchedule] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -115,6 +117,8 @@ export function AdminScheduleClient({
         return;
       }
       setToast("Agenda y reglas guardadas correctamente.");
+      setSavedSchedule(true);
+      window.setTimeout(() => setSavedSchedule(false), 3000);
       router.refresh();
     } finally {
       setBusy(false);
@@ -157,15 +161,13 @@ export function AdminScheduleClient({
           </p>
         </div>
 
-        <button
+        <SaveButton
           type="button"
-          disabled={busy}
+          busy={busy}
+          saved={savedSchedule}
           onClick={saveAllSchedule}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-5 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
-        >
-          <Save className="h-4 w-4" />
-          <span>{busy ? "Guardando..." : "Guardar cambios"}</span>
-        </button>
+          label="Guardar cambios"
+        />
       </div>
 
       {toast && (

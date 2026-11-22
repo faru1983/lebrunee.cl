@@ -7,6 +7,7 @@ import {
   adminUpdateAppointmentAction,
   closeAppointmentWithPaymentAction,
 } from "@/app/actions/crmFinanceActions";
+import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
 import type { AppointmentRecord, PaymentMethodRecord } from "@/lib/types";
 import { formatClp } from "@/lib/utils";
@@ -338,13 +339,11 @@ export function AppointmentDetailModal({
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="min-h-11 w-full rounded-full bg-[var(--brand-primary)] text-sm font-semibold text-white"
-            >
-              {busy ? "Guardando..." : "Guardar cambios de cita"}
-            </button>
+            <SaveButton
+              fullWidth
+              busy={busy}
+              label="Guardar cambios de cita"
+            />
           </form>
         )}
       </div>

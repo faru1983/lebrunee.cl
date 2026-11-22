@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   MessageCircle,
-  Plus,
-  Save,
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { SaveButton } from "@/components/ui/SaveButton";
 import {
   addClientTechnicalNoteAction,
   deleteClientTechnicalNoteAction,
@@ -47,12 +46,25 @@ export function AdminClientDetailClient({
 
   const [techNote, setTechNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [lastSavedKey, setLastSavedKey] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  function notifyOk(msg: string, savedKey: string) {
+    setErrorMsg(null);
+    setToast(msg);
+    setLastSavedKey(savedKey);
+    window.setTimeout(() => {
+      setLastSavedKey((cur) => (cur === savedKey ? null : cur));
+    }, 3000);
+    router.refresh();
+  }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSavingKey("profile");
     setErrorMsg(null);
     setToast(null);
     try {
@@ -72,10 +84,10 @@ export function AdminClientDetailClient({
         retentionOptOut: optOut,
       });
       if (!res.success) return setErrorMsg(res.error);
-      setToast("Datos de la clienta actualizados.");
-      router.refresh();
+      notifyOk("Datos de la clienta actualizados.", "profile");
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -83,6 +95,7 @@ export function AdminClientDetailClient({
     e.preventDefault();
     if (!techNote.trim()) return;
     setBusy(true);
+    setSavingKey("note");
     try {
       const res = await addClientTechnicalNoteAction({
         clientId: client.id,
@@ -90,11 +103,11 @@ export function AdminClientDetailClient({
       });
       if (res.success) {
         setTechNote("");
-        setToast("Nota técnica guardada.");
-        router.refresh();
+        notifyOk("Nota técnica guardada.", "note");
       }
     } finally {
       setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -160,14 +173,16 @@ export function AdminClientDetailClient({
             onChange={(e) => setTechNote(e.target.value)}
             className="min-h-11 flex-1 rounded-xl border border-[#e2cbd7] px-3 text-sm"
           />
-          <button
-            type="submit"
+          <SaveButton
+            busy={savingKey === "note"}
+            saved={lastSavedKey === "note"}
             disabled={busy}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-5 text-xs font-semibold text-white"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Agregar nota</span>
-          </button>
+            icon="plus"
+            label="Agregar nota"
+            busyLabel="Guardando..."
+            savedLabel="¡Agregada!"
+            className="shrink-0"
+          />
         </form>
 
         {notes.length === 0 ? (
@@ -300,14 +315,13 @@ export function AdminClientDetailClient({
           <span>No enviar recordatorios automáticos de mantención a esta clienta</span>
         </label>
 
-        <button
-          type="submit"
+        <SaveButton
+          variant="dark"
+          busy={savingKey === "profile"}
+          saved={lastSavedKey === "profile"}
           disabled={busy}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#1f141b] px-5 text-xs font-semibold text-white"
-        >
-          <Save className="h-4 w-4" />
-          <span>Guardar ficha</span>
-        </button>
+          label="Guardar ficha"
+        />
       </form>
 
       {/* History */}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { createAdminAppointmentAction } from "@/app/actions/adminActions";
 import { getAvailableSlotsAction } from "@/app/actions/bookingActions";
+import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
 import type { ServiceAddon, ServiceItem, StaffMember, TimeSlotOption } from "@/lib/types";
 import { formatClp } from "@/lib/utils";
@@ -372,14 +373,13 @@ export function ManualAppointmentModal({
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={busy || !startTime}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-          <span>Guardar cita</span>
-        </button>
+        <SaveButton
+          fullWidth
+          busy={busy}
+          disabled={!startTime}
+          label="Guardar cita"
+          busyLabel="Creando cita..."
+        />
       </form>
     </ModalDialog>
   );

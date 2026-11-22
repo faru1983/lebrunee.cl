@@ -13,11 +13,14 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  Pencil,
   Sparkles,
+  UserCheck,
 } from "lucide-react";
 import {
   createPublicBookingAction,
   getAvailableDatesAction,
+  getVerifiedClientProfileAction,
 } from "@/app/actions/bookingActions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
@@ -27,6 +30,7 @@ import type {
   ServiceItem,
   StaffMember,
   TimeSlotOption,
+  VerifiedClientProfile,
 } from "@/lib/types";
 import {
   buildWhatsAppUrl,
@@ -43,6 +47,7 @@ interface BookingWizardProps {
   staff: StaffMember[];
   initialServiceId?: string;
   initialVerifiedEmail: string | null;
+  initialClientProfile?: VerifiedClientProfile | null;
 }
 
 interface DaySummary {
@@ -69,6 +74,7 @@ export function BookingWizard({
   staff,
   initialServiceId,
   initialVerifiedEmail,
+  initialClientProfile = null,
 }: BookingWizardProps) {
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
@@ -84,13 +90,19 @@ export function BookingWizard({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState(initialVerifiedEmail || "");
-  const [phone, setPhone] = useState("+56 9 ");
-  const [birthDate, setBirthDate] = useState("");
-  const [instagramHandle, setInstagramHandle] = useState("");
-  const [isNewClient, setIsNewClient] = useState(true);
+  const [firstName, setFirstName] = useState(initialClientProfile?.firstName || "");
+  const [lastName, setLastName] = useState(initialClientProfile?.lastName || "");
+  const [email, setEmail] = useState(
+    initialClientProfile?.email || initialVerifiedEmail || ""
+  );
+  const [phone, setPhone] = useState(initialClientProfile?.phone || "+56 9 ");
+  const [birthDate, setBirthDate] = useState(initialClientProfile?.birthDate || "");
+  const [instagramHandle, setInstagramHandle] = useState(
+    initialClientProfile?.instagramHandle || ""
+  );
+  const [isNewClient, setIsNewClient] = useState(
+    initialClientProfile ? initialClientProfile.isNewClient : true
+  );
   const [clientNotes, setClientNotes] = useState("");
 
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(
@@ -99,6 +111,11 @@ export function BookingWizard({
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [loadedProfileFound, setLoadedProfileFound] = useState(
+    Boolean(initialClientProfile)
+  );
+  const [editingProfile, setEditingProfile] = useState(!initialClientProfile);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -210,6 +227,73 @@ export function BookingWizard({
     }
   }
 
+  async function handleVerifyOtpAndLoadProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!otpSent) {
+      await handleSendOtp();
+      return;
+    }
+
+    const cleanEmail = normalizeEmail(email);
+    if (otpCode.trim().length < 6) {
+      setErrorMsg("Ingresa el código de 6 dígitos que enviamos a tu correo.");
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: otpCode.trim(),
+        type: "email",
+      });
+      if (verifyErr) {
+        setErrorMsg("El código es incorrecto o expiró. Solicita uno nuevo.");
+        return;
+      }
+
+      setVerifiedEmail(cleanEmail);
+      const res = await getVerifiedClientProfileAction();
+      if (res.success && res.profile) {
+        setFirstName(res.profile.firstName);
+        setLastName(res.profile.lastName);
+        setPhone(res.profile.phone);
+        setBirthDate(res.profile.birthDate);
+        setInstagramHandle(res.profile.instagramHandle);
+        setIsNewClient(false);
+        setLoadedProfileFound(true);
+        setEditingProfile(false);
+      } else {
+        setLoadedProfileFound(false);
+        setEditingProfile(true);
+        setIsNewClient(true);
+      }
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
+
+  async function handleSwitchEmail() {
+    setErrorMsg(null);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    setVerifiedEmail(null);
+    setOtpSent(false);
+    setOtpCode("");
+    setEmail("");
+    setFirstName("");
+    setLastName("");
+    setPhone("+56 9 ");
+    setBirthDate("");
+    setInstagramHandle("");
+    setIsNewClient(true);
+    setLoadedProfileFound(false);
+    setEditingProfile(true);
+  }
+
   async function handleVerifyAndSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
@@ -219,30 +303,15 @@ export function BookingWizard({
       return;
     }
 
+    if (bundle.bookingRules.requireClientOtp && !isEmailAlreadyVerified) {
+      setErrorMsg("Valida tu correo electrónico antes de confirmar.");
+      return;
+    }
+
     const cleanEmail = normalizeEmail(email);
     setSubmitting(true);
 
     try {
-      if (bundle.bookingRules.requireClientOtp && !isEmailAlreadyVerified) {
-        if (otpCode.trim().length < 6) {
-          setErrorMsg("Ingresa el código de 6 dígitos que enviamos a tu correo.");
-          setSubmitting(false);
-          return;
-        }
-        const supabase = createSupabaseBrowserClient();
-        const { error: verifyErr } = await supabase.auth.verifyOtp({
-          email: cleanEmail,
-          token: otpCode.trim(),
-          type: "email",
-        });
-        if (verifyErr) {
-          setErrorMsg("El código es incorrecto o expiró. Solicita uno nuevo.");
-          setSubmitting(false);
-          return;
-        }
-        setVerifiedEmail(cleanEmail);
-      }
-
       const res = await createPublicBookingAction({
         serviceId: selectedService.id,
         addonIds: selectedAddonIds,
@@ -646,16 +715,16 @@ export function BookingWizard({
         </section>
       )}
 
-      {/* STEP 3: Contact + OTP + Confirm */}
-      {step === 3 && (
+      {/* STEP 3: Email Verification First -> Profile Auto-Load -> Confirm */}
+      {step === 3 && bundle.bookingRules.requireClientOtp && !isEmailAlreadyVerified && (
         <form
-          onSubmit={handleVerifyAndSubmit}
+          onSubmit={handleVerifyOtpAndLoadProfile}
           className="space-y-5 rounded-3xl border border-[#f1dfe8] bg-white p-5 shadow-xs sm:p-7"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 ref={stepHeadingRef} tabIndex={-1} className="font-serif text-3xl font-semibold text-[#1f141b]">
-                Tus datos y confirmación
+                Identifícate con tu correo
               </h1>
               <p className="mt-1 text-sm text-[#6c5763]">
                 {selectedService?.name} · {formatDateLongEs(selectedDate)} a las{" "}
@@ -672,211 +741,358 @@ export function BookingWizard({
             </button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="first-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Nombre <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="first-name"
-                name="firstName"
-                type="text"
-                required
-                autoComplete="given-name"
-                enterKeyHint="next"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Ej. María José"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="last-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Apellidos <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="last-name"
-                name="lastName"
-                type="text"
-                required
-                autoComplete="family-name"
-                enterKeyHint="next"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Ej. González Pérez"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="client-email" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Correo electrónico <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="client-email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                spellCheck={false}
-                enterKeyHint="next"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@correo.cl"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="client-phone" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                WhatsApp <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="client-phone"
-                name="phone"
-                type="tel"
-                required
-                autoComplete="tel"
-                enterKeyHint="next"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+56 9 1234 5678"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="client-bday" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Fecha de cumpleaños (opcional)
-              </label>
-              <span id="bday-hint" className="mb-1 block text-xs text-[#6c5763]">
-                Para enviarte un regalito en tu cumpleaños.
-              </span>
-              <input
-                id="client-bday"
-                name="birthDate"
-                type="date"
-                autoComplete="bday"
-                aria-describedby="bday-hint"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="client-ig" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Instagram (opcional)
-              </label>
-              <span className="mb-1 block text-xs text-transparent select-none" aria-hidden="true">
-                .
-              </span>
-              <input
-                id="client-ig"
-                name="instagramHandle"
-                type="text"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={instagramHandle}
-                onChange={(e) => setInstagramHandle(e.target.value)}
-                placeholder="@tuusuario"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-              />
-            </div>
-
-            <div className="sm:col-span-2 flex items-center pt-1">
-              <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-[#1f141b]">
-                <input
-                  type="checkbox"
-                  checked={isNewClient}
-                  onChange={(e) => setIsNewClient(e.target.checked)}
-                  className="h-4 w-4 accent-[var(--brand-primary)]"
-                />
-                <span>Es mi primera visita</span>
-              </label>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label htmlFor="client-notes" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Comentarios o idea de diseño (opcional)
-              </label>
-              <textarea
-                id="client-notes"
-                name="clientNotes"
-                rows={2}
-                value={clientNotes}
-                onChange={(e) => setClientNotes(e.target.value)}
-                placeholder="Ej. Me gustaría algo en tonos burdeo o diseño minimalista..."
-                className="w-full rounded-2xl border border-[#e2cbd7] bg-white p-3.5 text-base text-[#1f141b] sm:text-sm"
-              />
+          <div className="rounded-2xl border border-[#f0cfe0] bg-[#fff8fb] p-4">
+            <div className="flex items-start gap-2.5">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
+              <p className="text-xs leading-relaxed text-[#4b3843] sm:text-sm">
+                <strong className="text-[#1f141b]">Sin contraseña:</strong> te enviaremos un código
+                de 6 dígitos. Si ya reservaste antes con nosotros,{" "}
+                <strong>cargaremos tu ficha automáticamente</strong>.
+              </p>
             </div>
           </div>
 
-          {/* Inline OTP Verification when required */}
-          {bundle.bookingRules.requireClientOtp && (
-            <div className="rounded-2xl border border-[#f0cfe0] bg-[#fff8fb] p-4">
-              {isEmailAlreadyVerified ? (
-                <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Correo verificado ({verifiedEmail}). Ya puedes confirmar tu solicitud.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
-                    <div className="text-xs leading-relaxed text-[#4b3843] sm:text-sm">
-                      <strong className="text-[#1f141b]">Verificación rápida sin contraseña:</strong>{" "}
-                      te enviaremos un código de 6 dígitos a tu correo para cuidar tu cupo y darte acceso a <em>Mis Citas</em>.
-                    </div>
-                  </div>
+          <div>
+            <label htmlFor="client-email-step3a" className="mb-1 block text-sm font-medium text-[#1f141b]">
+              Correo electrónico <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="client-email-step3a"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              spellCheck={false}
+              disabled={otpSent}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@correo.cl"
+              className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] disabled:bg-[#faf5f8] disabled:text-[#6c5763] sm:text-sm"
+            />
+          </div>
 
-                  {!otpSent ? (
-                    <button
-                      type="button"
-                      disabled={otpBusy}
-                      onClick={handleSendOtp}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--brand-primary)] bg-white px-5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[#fdf0f6]"
-                    >
-                      {otpBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      <span>Enviar código a mi correo</span>
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <label htmlFor="otp-code" className="block text-xs font-semibold text-[#1f141b]">
-                        Código de 6 dígitos enviado a {normalizeEmail(email)}
-                      </label>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          id="otp-code"
-                          name="otpCode"
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="one-time-code"
-                          pattern="\d{6}"
-                          maxLength={6}
-                          required
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                          placeholder="000000"
-                          className="min-h-12 w-40 rounded-2xl border border-[#d6b3c5] bg-white px-4 text-center text-lg font-bold tracking-[0.25em] text-[#1f141b]"
-                        />
-                        <button
-                          type="button"
-                          disabled={otpBusy}
-                          onClick={handleSendOtp}
-                          className="min-h-11 px-3 text-xs font-semibold text-[var(--brand-primary)] underline"
-                        >
-                          Reenviar código
-                        </button>
-                      </div>
-                    </div>
-                  )}
+          {!otpSent ? (
+            <button
+              type="submit"
+              disabled={otpBusy}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white shadow-md transition hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {otpBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Enviando código...</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4" />
+                  <span>Enviar código a mi correo</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="otp-code" className="mb-1 block text-xs font-semibold text-[#1f141b]">
+                  Código de 6 dígitos enviado a {normalizeEmail(email)}
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    id="otp-code"
+                    name="otpCode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    required
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="000000"
+                    className="min-h-12 w-44 rounded-2xl border border-[#d6b3c5] bg-white px-4 text-center text-lg font-bold tracking-[0.25em] text-[#1f141b]"
+                  />
+                  <button
+                    type="button"
+                    disabled={otpBusy}
+                    onClick={handleSendOtp}
+                    className="min-h-11 px-2 text-xs font-semibold text-[var(--brand-primary)] underline"
+                  >
+                    Reenviar código
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtpCode("");
+                      setErrorMsg(null);
+                    }}
+                    className="min-h-11 px-2 text-xs font-medium text-[#6c5763] underline"
+                  >
+                    Cambiar correo
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={verifyingOtp || otpCode.trim().length < 6}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white shadow-md transition hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {verifyingOtp ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Verificando y cargando tu ficha...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Verificar código y continuar</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </form>
+      )}
+
+      {step === 3 && isEmailAlreadyVerified && (
+        <form
+          onSubmit={handleVerifyAndSubmit}
+          className="space-y-5 rounded-3xl border border-[#f1dfe8] bg-white p-5 shadow-xs sm:p-7"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 ref={stepHeadingRef} tabIndex={-1} className="font-serif text-3xl font-semibold text-[#1f141b]">
+                {loadedProfileFound ? "Confirma tu reserva" : "Tus datos y confirmación"}
+              </h1>
+              <p className="mt-1 text-sm text-[#6c5763]">
+                {selectedService?.name} · {formatDateLongEs(selectedDate)} a las{" "}
+                <strong>{selectedTime} hrs</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="inline-flex min-h-10 items-center gap-1 rounded-full border border-[#e7cddb] px-3.5 text-xs font-semibold text-[#4a3541]"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Hora
+            </button>
+          </div>
+
+          {bundle.bookingRules.requireClientOtp && verifiedEmail && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs sm:text-sm">
+              <p className="flex items-center gap-2 font-medium text-emerald-800">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>Correo verificado: {verifiedEmail}</span>
+              </p>
+              <button
+                type="button"
+                onClick={handleSwitchEmail}
+                className="min-h-9 text-xs font-semibold text-emerald-900 underline"
+              >
+                Usar otro correo
+              </button>
+            </div>
+          )}
+
+          {loadedProfileFound && !editingProfile ? (
+            <div className="rounded-2xl border border-[#eedbe4] bg-[#fff9fc] p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-[var(--brand-primary)]" />
+                  <div>
+                    <p className="text-sm font-bold text-[#1f141b]">
+                      ¡Hola de nuevo, {firstName}!
+                    </p>
+                    <p className="text-xs text-[#6c5763]">
+                      Cargamos los datos de tu ficha registrada.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingProfile(true)}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#e3c7d6] bg-white px-3 text-xs font-semibold text-[#1f141b] transition hover:border-[var(--brand-primary)]"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Editar datos</span>
+                </button>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs text-[#7a6571]">Nombre completo</dt>
+                  <dd className="font-medium text-[#1f141b]">
+                    {firstName} {lastName}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[#7a6571]">WhatsApp</dt>
+                  <dd className="font-medium text-[#1f141b]">{phone}</dd>
+                </div>
+                {birthDate && (
+                  <div>
+                    <dt className="text-xs text-[#7a6571]">Cumpleaños</dt>
+                    <dd className="font-medium text-[#1f141b]">{birthDate}</dd>
+                  </div>
+                )}
+                {instagramHandle && (
+                  <div>
+                    <dt className="text-xs text-[#7a6571]">Instagram</dt>
+                    <dd className="font-medium text-[#1f141b]">
+                      @{instagramHandle.replace(/^@/, "")}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="first-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                  Nombre <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="first-name"
+                  name="firstName"
+                  type="text"
+                  required
+                  autoComplete="given-name"
+                  enterKeyHint="next"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Ej. María José"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="last-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                  Apellidos <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="last-name"
+                  name="lastName"
+                  type="text"
+                  required
+                  autoComplete="family-name"
+                  enterKeyHint="next"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Ej. González Pérez"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              {!bundle.bookingRules.requireClientOtp && (
+                <div>
+                  <label htmlFor="client-email" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                    Correo electrónico <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    id="client-email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    spellCheck={false}
+                    enterKeyHint="next"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="tu@correo.cl"
+                    className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="client-phone" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                  WhatsApp <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="client-phone"
+                  name="phone"
+                  type="tel"
+                  required
+                  autoComplete="tel"
+                  enterKeyHint="next"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+56 9 1234 5678"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="client-bday" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                  Fecha de cumpleaños (opcional)
+                </label>
+                <span id="bday-hint" className="mb-1 block text-xs text-[#6c5763]">
+                  Para enviarte un regalito en tu cumpleaños.
+                </span>
+                <input
+                  id="client-bday"
+                  name="birthDate"
+                  type="date"
+                  autoComplete="bday"
+                  aria-describedby="bday-hint"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="client-ig" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                  Instagram (opcional)
+                </label>
+                <span className="mb-1 block text-xs text-transparent select-none" aria-hidden="true">
+                  .
+                </span>
+                <input
+                  id="client-ig"
+                  name="instagramHandle"
+                  type="text"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={instagramHandle}
+                  onChange={(e) => setInstagramHandle(e.target.value)}
+                  placeholder="@tuusuario"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              {!loadedProfileFound && (
+                <div className="sm:col-span-2 flex items-center pt-1">
+                  <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-[#1f141b]">
+                    <input
+                      type="checkbox"
+                      checked={isNewClient}
+                      onChange={(e) => setIsNewClient(e.target.checked)}
+                      className="h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                    <span>Es mi primera visita</span>
+                  </label>
                 </div>
               )}
             </div>
           )}
+
+          <div>
+            <label htmlFor="client-notes" className="mb-1 block text-sm font-medium text-[#1f141b]">
+              Comentarios o idea de diseño (opcional)
+            </label>
+            <textarea
+              id="client-notes"
+              name="clientNotes"
+              rows={2}
+              value={clientNotes}
+              onChange={(e) => setClientNotes(e.target.value)}
+              placeholder="Ej. Me gustaría algo en tonos burdeo o diseño minimalista..."
+              className="w-full rounded-2xl border border-[#e2cbd7] bg-white p-3.5 text-base text-[#1f141b] sm:text-sm"
+            />
+          </div>
 
           <div className="rounded-2xl bg-[#f9f4f6] p-4 text-xs leading-relaxed text-[#5a4551]">
             <strong>Resumen de políticas:</strong> {bundle.policies.reschedulePolicy}{" "}
@@ -885,10 +1101,7 @@ export function BookingWizard({
 
           <button
             type="submit"
-            disabled={
-              submitting ||
-              (bundle.bookingRules.requireClientOtp && !isEmailAlreadyVerified && !otpSent)
-            }
+            disabled={submitting}
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white shadow-md transition hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? (
