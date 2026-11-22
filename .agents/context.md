@@ -11,5 +11,6 @@
 
 ### 22-11-2026 — Inicialización Integral (Etapas 1 a 4)
 - Creada estructura Next.js 16 + Tailwind CSS v4 + TypeScript + PWA.
-- Creadas migraciones iniciales en Supabase (`initial_schema`, `seed_lebrunee_initial`) con `business_id`, RLS y datos iniciales editables de Lebrunee.
+- Creadas migraciones iniciales en Supabase (`initial_schema`, `seed_lebrunee_initial`, `fix_seed_image_urls`, `add_covering_indexes`) con `business_id`, RLS y datos iniciales editables de Lebrunee.
 - Documentación base creada (`AGENTS.md`, `.agents/rules/rules.md`, `README.md`, `CHANGELOG.md`, `docs/*`, `docs/adr/*`).
+- Blindado `businessService.ts` y `app/manifest.ts` (`force-dynamic`) para evitar errores de prerendering en `next build` cuando las variables de entorno aún no están cargadas en Vercel.

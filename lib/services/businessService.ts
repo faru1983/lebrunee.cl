@@ -26,7 +26,15 @@ import type {
   StaffMember,
 } from "@/lib/types";
 
+function hasPublicSupabaseEnv(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+  );
+}
+
 function createPublicAnonClient() {
+  if (!hasPublicSupabaseEnv()) return null;
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -111,8 +119,36 @@ const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   transactionalReserve: 25,
 };
 
+const DEFAULT_BUSINESS: Business = {
+  id: "00000000-0000-0000-0000-000000000000",
+  slug: "lebrunee",
+  custom_domain: "lebrunee.cl",
+  name: "Lebrunee Nails",
+  tagline: "Empodera tus uñas · Manicure profesional en uña natural",
+  timezone: "America/Santiago",
+  currency: "CLP",
+  locale: "es-CL",
+  is_active: true,
+};
+
+function buildFallbackBundle(): BusinessPublicBundle {
+  return {
+    business: DEFAULT_BUSINESS,
+    branding: DEFAULT_BRANDING,
+    contactPublic: DEFAULT_CONTACT,
+    bookingRules: DEFAULT_BOOKING_RULES,
+    paymentBank: DEFAULT_PAYMENT_BANK,
+    landingContent: DEFAULT_LANDING,
+    policies: DEFAULT_POLICIES,
+    notifications: DEFAULT_NOTIFICATIONS,
+  };
+}
+
 async function fetchBusinessBundleUncached(slug: string): Promise<BusinessPublicBundle> {
   const db = createPublicAnonClient();
+  if (!db) {
+    return buildFallbackBundle();
+  }
 
   const { data: biz, error } = await db
     .from("businesses")
@@ -163,18 +199,31 @@ async function fetchBusinessBundleUncached(slug: string): Promise<BusinessPublic
   };
 }
 
-export const getActiveBusinessBundle = unstable_cache(
-  async (slug?: string) => {
-    const targetSlug = slug || process.env.DEFAULT_BUSINESS_SLUG || "lebrunee";
-    return fetchBusinessBundleUncached(targetSlug);
-  },
+const getCachedBusinessBundle = unstable_cache(
+  async (slug: string) => fetchBusinessBundleUncached(slug),
   ["business-public-bundle"],
   { revalidate: 60, tags: ["business-settings"] }
 );
 
-export const getPublicCatalog = unstable_cache(
+export async function getActiveBusinessBundle(slug?: string): Promise<BusinessPublicBundle> {
+  if (!hasPublicSupabaseEnv()) {
+    return buildFallbackBundle();
+  }
+  const targetSlug = slug || process.env.DEFAULT_BUSINESS_SLUG || "lebrunee";
+  return getCachedBusinessBundle(targetSlug);
+}
+
+const getCachedPublicCatalog = unstable_cache(
   async (businessId: string) => {
     const db = createPublicAnonClient();
+    if (!db) {
+      return {
+        categories: [] as ServiceCategory[],
+        services: [] as ServiceItem[],
+        addons: [] as ServiceAddon[],
+        staff: [] as StaffMember[],
+      };
+    }
     const [categoriesRes, servicesRes, addonsRes, staffRes] = await Promise.all([
       db
         .from("service_categories")
@@ -217,8 +266,27 @@ export const getPublicCatalog = unstable_cache(
   { revalidate: 60, tags: ["catalog"] }
 );
 
+export async function getPublicCatalog(businessId: string) {
+  if (!hasPublicSupabaseEnv() || businessId === DEFAULT_BUSINESS.id) {
+    return {
+      categories: [] as ServiceCategory[],
+      services: [] as ServiceItem[],
+      addons: [] as ServiceAddon[],
+      staff: [] as StaffMember[],
+    };
+  }
+  return getCachedPublicCatalog(businessId);
+}
+
 export async function getScheduleConfig(businessId: string, staffId: string) {
   const db = createPublicAnonClient();
+  if (!db) {
+    return {
+      rules: [] as AvailabilityRule[],
+      fixedSlots: [] as AvailabilityFixedSlot[],
+      exceptions: [] as AvailabilityException[],
+    };
+  }
   const [rulesRes, fixedRes, exceptionsRes] = await Promise.all([
     db
       .from("availability_rules")

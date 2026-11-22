@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getActiveBusinessBundle } from "@/lib/services/businessService";
 
+export const dynamic = "force-dynamic";
+
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const bundle = await getActiveBusinessBundle();
 
