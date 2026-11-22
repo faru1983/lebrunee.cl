@@ -20,6 +20,7 @@ import {
   sendTestEmailAction,
   toggleBusinessMemberAction,
 } from "@/app/actions/adminActions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { ResendIntegrationView } from "@/lib/services/emailService";
 import type {
   BusinessMemberRecord,
@@ -78,11 +79,12 @@ export function AdminSettingsClient({
   const [notifications, setNotifications] = useState(bundle.notifications);
   const [templateEdits, setTemplateEdits] = useState(templates);
 
-  // 5. Team
+  // 5. Team & Change Own Password
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newMemberPass, setNewMemberPass] = useState("");
   const [newMemberRole, setNewMemberRole] = useState<"admin" | "staff">("admin");
+  const [myNewPassword, setMyNewPassword] = useState("");
 
   function notifyOk(msg: string) {
     setErrorMsg(null);
@@ -190,6 +192,24 @@ export function AdminSettingsClient({
       const res = await sendTestEmailAction(testEmailTo);
       if (!res.ok) setErrorMsg(res.message);
       else notifyOk(res.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleChangeMyPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (myNewPassword.length < 8) {
+      return setErrorMsg("Tu nueva contraseña debe tener mínimo 8 caracteres.");
+    }
+    setBusy(true);
+    setErrorMsg(null);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.updateUser({ password: myNewPassword });
+      if (error) return setErrorMsg(error.message);
+      setMyNewPassword("");
+      notifyOk("Tu contraseña ha sido actualizada.");
     } finally {
       setBusy(false);
     }
@@ -913,15 +933,45 @@ export function AdminSettingsClient({
 
       {/* TAB 5: TEAM & ADMIN ACCOUNTS */}
       {tab === "team" && (
-        <div className="space-y-5 rounded-3xl border border-[#eedbe4] bg-white p-5">
-          <div>
-            <h2 className="text-base font-bold text-[#1f141b]">
-              Perfiles de Administración y Equipo
-            </h2>
+        <div className="space-y-5">
+          <form
+            onSubmit={handleChangeMyPassword}
+            className="space-y-3 rounded-3xl border border-[#eedbe4] bg-white p-5"
+          >
+            <h2 className="text-base font-bold text-[#1f141b]">Cambiar mi contraseña</h2>
             <p className="text-xs text-[#6c5763]">
-              La cuenta dueña puede crear nuevos perfiles de administradora o manicurista.
+              Actualiza la clave de tu propia sesión actual sin esperar correos.
             </p>
-          </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="password"
+                minLength={8}
+                required
+                autoComplete="new-password"
+                placeholder="Nueva contraseña (mín. 8 caracteres)"
+                value={myNewPassword}
+                onChange={(e) => setMyNewPassword(e.target.value)}
+                className="min-h-11 flex-1 rounded-xl border border-[#e2cbd7] px-3 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={busy}
+                className="min-h-11 shrink-0 rounded-full border border-[var(--brand-primary)] px-5 text-xs font-semibold text-[var(--brand-primary)]"
+              >
+                Actualizar mi clave
+              </button>
+            </div>
+          </form>
+
+          <div className="space-y-5 rounded-3xl border border-[#eedbe4] bg-white p-5">
+            <div>
+              <h2 className="text-base font-bold text-[#1f141b]">
+                Perfiles de Administración y Equipo
+              </h2>
+              <p className="text-xs text-[#6c5763]">
+                La cuenta dueña puede crear nuevos perfiles de administradora o manicurista.
+              </p>
+            </div>
 
           <div className="space-y-2">
             {members.map((m) => (
@@ -1005,6 +1055,7 @@ export function AdminSettingsClient({
               </button>
             </form>
           )}
+          </div>
         </div>
       )}
     </div>

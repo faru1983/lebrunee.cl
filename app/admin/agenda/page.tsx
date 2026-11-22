@@ -5,6 +5,7 @@ import {
   getAuthenticatedAdminContext,
   getPublicCatalog,
 } from "@/lib/services/businessService";
+import { getPaymentMethodsForBusiness } from "@/lib/services/financeService";
 import { addDaysToIsoDate, getTodayInTimezone } from "@/lib/utils";
 import { AdminAgendaClient } from "@/components/admin/AdminAgendaClient";
 
@@ -18,10 +19,11 @@ export default async function AdminAgendaPage() {
   const fromDate = addDaysToIsoDate(today, -14);
   const toDate = addDaysToIsoDate(today, 60);
 
-  const [bundle, catalog, appointments] = await Promise.all([
+  const [bundle, catalog, appointments, paymentMethods] = await Promise.all([
     getActiveBusinessBundle(),
     getPublicCatalog(ctx.business.id),
     getAdminAgendaRange(ctx.business.id, fromDate, toDate),
+    getPaymentMethodsForBusiness(ctx.business.id),
   ]);
 
   return (
@@ -31,6 +33,7 @@ export default async function AdminAgendaPage() {
       services={catalog.services}
       addons={catalog.addons}
       staff={catalog.staff}
+      paymentMethods={paymentMethods}
       depositDefaultClp={bundle.paymentBank.depositAmountClp}
     />
   );

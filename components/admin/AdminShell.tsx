@@ -7,9 +7,13 @@ import {
   Clock,
   ExternalLink,
   Home,
+  LayoutGrid,
   LogOut,
+  MailCheck,
   Scissors,
   Settings,
+  Users,
+  Wallet,
 } from "lucide-react";
 import { adminLogoutAction } from "@/app/actions/adminActions";
 import type { MemberRole } from "@/lib/types";
@@ -21,12 +25,23 @@ interface AdminShellProps {
   children: React.ReactNode;
 }
 
-const NAV_ITEMS = [
+const DESKTOP_NAV_ITEMS = [
   { href: "/admin", label: "Hoy", icon: Home, exact: true },
   { href: "/admin/agenda", label: "Agenda", icon: CalendarDays, exact: false },
+  { href: "/admin/clients", label: "Clientas", icon: Users, exact: false },
+  { href: "/admin/finanzas", label: "Finanzas", icon: Wallet, exact: false },
+  { href: "/admin/comunicaciones", label: "Comunicaciones", icon: MailCheck, exact: false },
   { href: "/admin/services", label: "Servicios", icon: Scissors, exact: false },
   { href: "/admin/schedule", label: "Horarios", icon: Clock, exact: false },
   { href: "/admin/settings", label: "Ajustes", icon: Settings, exact: false },
+];
+
+const MOBILE_NAV_ITEMS = [
+  { href: "/admin", label: "Hoy", icon: Home, exact: true },
+  { href: "/admin/agenda", label: "Agenda", icon: CalendarDays, exact: false },
+  { href: "/admin/clients", label: "Clientas", icon: Users, exact: false },
+  { href: "/admin/finanzas", label: "Finanzas", icon: Wallet, exact: false },
+  { href: "/admin/more", label: "Más", icon: LayoutGrid, exact: false },
 ];
 
 export function AdminShell({
@@ -37,8 +52,18 @@ export function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
 
-  const isActive = (href: string, exact: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href);
+  const isActive = (href: string, exact: boolean) => {
+    if (href === "/admin/more") {
+      return (
+        pathname.startsWith("/admin/more") ||
+        pathname.startsWith("/admin/services") ||
+        pathname.startsWith("/admin/schedule") ||
+        pathname.startsWith("/admin/comunicaciones") ||
+        pathname.startsWith("/admin/settings")
+      );
+    }
+    return exact ? pathname === href : pathname.startsWith(href);
+  };
 
   return (
     <div className="min-h-dvh bg-[#faf6f8] text-[#1f141b] md:flex">
@@ -54,7 +79,7 @@ export function AdminShell({
         </div>
 
         <nav aria-label="Menú administración" className="flex-1 space-y-1 p-3">
-          {NAV_ITEMS.map((item) => {
+          {DESKTOP_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href, item.exact);
             return (
@@ -134,7 +159,7 @@ export function AdminShell({
         aria-label="Navegación móvil"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[#eedbe4] bg-white/95 pb-safe backdrop-blur-md md:hidden"
       >
-        {NAV_ITEMS.map((item) => {
+        {MOBILE_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href, item.exact);
           return (

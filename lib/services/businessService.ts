@@ -15,11 +15,13 @@ import type {
   BusinessMemberRecord,
   BusinessPublicBundle,
   ContactPublicSettings,
+  ExpenseCategoriesSettings,
   LandingContentSettings,
   NotificationSettings,
   PaymentBankSettings,
   PoliciesSettings,
   PrivateLocationSettings,
+  RetentionRulesSettings,
   ServiceAddon,
   ServiceCategory,
   ServiceItem,
@@ -119,6 +121,23 @@ const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   transactionalReserve: 25,
 };
 
+const DEFAULT_RETENTION_RULES: RetentionRulesSettings = {
+  retentionEnabled: false,
+  daysSinceLastVisit: 21,
+  cooldownDays: 30,
+  whatsappTemplate:
+    "Hola {{nombre}}! Ya pasaron {{dias}} días desde tu última cita ({{servicio}}) en {{negocio}}. Te dejo el link para agendar tu mantención: {{link_reserva}}",
+};
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  "Insumos y Esmaltes",
+  "Herramientas y Esterilización",
+  "Arriendo y Servicios",
+  "Coffee Break",
+  "Marketing y Redes",
+  "Otros",
+];
+
 const DEFAULT_BUSINESS: Business = {
   id: "00000000-0000-0000-0000-000000000000",
   slug: "lebrunee",
@@ -141,6 +160,8 @@ function buildFallbackBundle(): BusinessPublicBundle {
     landingContent: DEFAULT_LANDING,
     policies: DEFAULT_POLICIES,
     notifications: DEFAULT_NOTIFICATIONS,
+    retentionRules: DEFAULT_RETENTION_RULES,
+    expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   };
 }
 
@@ -196,6 +217,13 @@ async function fetchBusinessBundleUncached(slug: string): Promise<BusinessPublic
       ...DEFAULT_NOTIFICATIONS,
       ...(map.get("notifications") || {}),
     } as NotificationSettings,
+    retentionRules: {
+      ...DEFAULT_RETENTION_RULES,
+      ...(map.get("retention_rules") || {}),
+    } as RetentionRulesSettings,
+    expenseCategories:
+      (map.get("expense_categories") as ExpenseCategoriesSettings | undefined)
+        ?.categories || DEFAULT_EXPENSE_CATEGORIES,
   };
 }
 

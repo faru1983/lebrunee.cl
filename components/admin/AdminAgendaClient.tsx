@@ -7,10 +7,12 @@ import {
   confirmAppointmentDepositAction,
   updateAppointmentStatusAction,
 } from "@/app/actions/adminActions";
+import { AppointmentDetailModal } from "@/components/admin/AppointmentDetailModal";
 import { ManualAppointmentModal } from "@/components/admin/ManualAppointmentModal";
 import type {
   AppointmentRecord,
   AppointmentStatus,
+  PaymentMethodRecord,
   ServiceAddon,
   ServiceItem,
   StaffMember,
@@ -23,6 +25,7 @@ interface AdminAgendaClientProps {
   services: ServiceItem[];
   addons: ServiceAddon[];
   staff: StaffMember[];
+  paymentMethods: PaymentMethodRecord[];
   depositDefaultClp: number;
 }
 
@@ -40,12 +43,14 @@ export function AdminAgendaClient({
   services,
   addons,
   staff,
+  paymentMethods,
   depositDefaultClp,
 }: AdminAgendaClientProps) {
   const router = useRouter();
   const [filterStatus, setFilterStatus] = useState<"all" | AppointmentStatus>("all");
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<AppointmentRecord | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -202,11 +207,19 @@ export function AdminAgendaClient({
                   {appt.status === "confirmed" && (
                     <button
                       type="button"
-                      disabled={busyId === appt.id}
-                      onClick={() => handleStatus(appt.id, "completed")}
+                      onClick={() => setDetailTarget(appt)}
                       className="inline-flex min-h-10 items-center gap-1 rounded-xl bg-[var(--brand-primary)] px-3.5 text-xs font-semibold text-white"
                     >
-                      Marcar realizada
+                      Cerrar y cobrar / Editar
+                    </button>
+                  )}
+                  {appt.status !== "confirmed" && (
+                    <button
+                      type="button"
+                      onClick={() => setDetailTarget(appt)}
+                      className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-[#e2cbd7] px-3 text-xs font-semibold text-[#1f141b]"
+                    >
+                      Ver / Editar
                     </button>
                   )}
                   {waUrl && (
@@ -247,6 +260,14 @@ export function AdminAgendaClient({
         staff={staff}
         defaultDate={today}
         depositDefaultClp={depositDefaultClp}
+      />
+
+      <AppointmentDetailModal
+        key={detailTarget?.id || "none"}
+        appointment={detailTarget}
+        onClose={() => setDetailTarget(null)}
+        onUpdated={() => router.refresh()}
+        paymentMethods={paymentMethods}
       />
     </div>
   );

@@ -16,9 +16,11 @@ import {
   confirmAppointmentDepositAction,
   updateAppointmentStatusAction,
 } from "@/app/actions/adminActions";
+import { AppointmentDetailModal } from "@/components/admin/AppointmentDetailModal";
 import { ManualAppointmentModal } from "@/components/admin/ManualAppointmentModal";
 import type {
   AppointmentRecord,
+  PaymentMethodRecord,
   ServiceAddon,
   ServiceItem,
   StaffMember,
@@ -35,6 +37,7 @@ interface AdminTodayClientProps {
   services: ServiceItem[];
   addons: ServiceAddon[];
   staff: StaffMember[];
+  paymentMethods: PaymentMethodRecord[];
   depositDefaultClp: number;
 }
 
@@ -48,11 +51,13 @@ export function AdminTodayClient({
   services,
   addons,
   staff,
+  paymentMethods,
   depositDefaultClp,
 }: AdminTodayClientProps) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<AppointmentRecord | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   async function approveDeposit(appt: AppointmentRecord) {
@@ -295,12 +300,11 @@ export function AdminTodayClient({
                       ) : (
                         <button
                           type="button"
-                          disabled={busyId === appt.id}
-                          onClick={() => setStatus(appt.id, "completed")}
+                          onClick={() => setDetailTarget(appt)}
                           className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--brand-primary)] px-3 text-xs font-semibold text-white"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
-                          Marcar realizada
+                          Cerrar y cobrar / Editar
                         </button>
                       )}
                       {waUrl && (
@@ -361,6 +365,17 @@ export function AdminTodayClient({
         staff={staff}
         defaultDate={today}
         depositDefaultClp={depositDefaultClp}
+      />
+
+      <AppointmentDetailModal
+        key={detailTarget?.id || "none"}
+        appointment={detailTarget}
+        onClose={() => setDetailTarget(null)}
+        onUpdated={() => {
+          setToast("Cita actualizada correctamente.");
+          router.refresh();
+        }}
+        paymentMethods={paymentMethods}
       />
     </div>
   );

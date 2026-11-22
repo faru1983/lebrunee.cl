@@ -1,11 +1,15 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient, hasValidServiceRoleKey } from "@/lib/supabase/server";
 import {
   getActiveBusinessBundle,
   getPrivateLocationForServer,
 } from "@/lib/services/businessService";
+import {
+  filterRetentionCandidates,
+  getAdminClientsList,
+} from "@/lib/services/crmService";
 import { sendBusinessEmail } from "@/lib/services/emailService";
+import { createSupabaseAdminClient, hasValidServiceRoleKey } from "@/lib/supabase/server";
 import { addDaysToIsoDate, formatDateLongEs, getTodayInTimezone } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -45,7 +49,7 @@ async function handle(request: Request) {
   const tomorrow = addDaysToIsoDate(today, 1);
   const inTwoDays = addDaysToIsoDate(today, 2);
 
-  // Keep-alive + reminder candidates query
+  // 1. Upcoming Appointment Reminders (also keeps Supabase Free Tier active daily)
   const { data: candidates } = await admin
     .from("appointments")
     .select(
@@ -55,65 +59,96 @@ async function handle(request: Request) {
     .eq("status", "confirmed")
     .in("appointment_date", [tomorrow, inTwoDays]);
 
-  if (!bundle.notifications.autoRemindersEnabled) {
-    return NextResponse.json({
-      ok: true,
-      keepAlive: true,
-      remindersSent: 0,
-      note: "Recordatorios automáticos desactivados.",
-    });
+  let upcomingSent = 0;
+
+  if (bundle.notifications.autoRemindersEnabled) {
+    const privateLoc = await getPrivateLocationForServer(bundle.business.id);
+    for (const row of candidates || []) {
+      const client = row.client as unknown as { first_name: string; email: string } | null;
+      if (!client?.email) continue;
+
+      const is24h = row.appointment_date === tomorrow && !row.reminder_24h_sent_at;
+      const is48h = row.appointment_date === inTwoDays && !row.reminder_48h_sent_at;
+      if (!is24h && !is48h) continue;
+
+      const serviceLabel =
+        (row.items as Array<{ name_snapshot: string }> | undefined)
+          ?.map((i) => i.name_snapshot)
+          .join(" + ") || "Tu cita";
+
+      const res = await sendBusinessEmail({
+        businessId: bundle.business.id,
+        to: client.email,
+        templateKey: "reminder_upcoming",
+        category: "reminder",
+        appointmentId: row.id,
+        variables: {
+          nombre: client.first_name,
+          codigo: row.booking_code,
+          servicio: serviceLabel,
+          fecha: formatDateLongEs(row.appointment_date),
+          hora: row.start_time.slice(0, 5),
+          direccion: privateLoc.exactAddress || bundle.contactPublic.publicLocationLabel,
+        },
+      });
+
+      if (res.status === "sent") {
+        upcomingSent++;
+        await admin
+          .from("appointments")
+          .update(
+            is24h
+              ? { reminder_24h_sent_at: new Date().toISOString() }
+              : { reminder_48h_sent_at: new Date().toISOString() }
+          )
+          .eq("id", row.id);
+      }
+    }
   }
 
-  const privateLoc = await getPrivateLocationForServer(bundle.business.id);
-  let sentCount = 0;
+  // 2. Configurable Retention Reminders (XX days since last visit)
+  let retentionSent = 0;
+  if (bundle.retentionRules.retentionEnabled) {
+    const allClients = await getAdminClientsList(
+      bundle.business.id,
+      bundle.business.timezone
+    );
+    const dueClients = filterRetentionCandidates(allClients, bundle.retentionRules);
+    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
 
-  for (const row of candidates || []) {
-    const client = row.client as unknown as { first_name: string; email: string } | null;
-    if (!client?.email) continue;
+    for (const c of dueClients) {
+      const res = await sendBusinessEmail({
+        businessId: bundle.business.id,
+        to: c.email,
+        templateKey: "retention_followup",
+        category: "reminder",
+        variables: {
+          nombre: c.first_name,
+          dias: c.daysSinceLastVisit || bundle.retentionRules.daysSinceLastVisit,
+          servicio: c.lastServiceName || "tu último servicio",
+          link_reserva: bookingUrl,
+        },
+      });
 
-    const is24h = row.appointment_date === tomorrow && !row.reminder_24h_sent_at;
-    const is48h = row.appointment_date === inTwoDays && !row.reminder_48h_sent_at;
-    if (!is24h && !is48h) continue;
-
-    const serviceLabel =
-      (row.items as Array<{ name_snapshot: string }> | undefined)
-        ?.map((i) => i.name_snapshot)
-        .join(" + ") || "Tu cita";
-
-    const res = await sendBusinessEmail({
-      businessId: bundle.business.id,
-      to: client.email,
-      templateKey: "reminder_upcoming",
-      category: "reminder",
-      appointmentId: row.id,
-      variables: {
-        nombre: client.first_name,
-        codigo: row.booking_code,
-        servicio: serviceLabel,
-        fecha: formatDateLongEs(row.appointment_date),
-        hora: row.start_time.slice(0, 5),
-        direccion: privateLoc.exactAddress || bundle.contactPublic.publicLocationLabel,
-      },
-    });
-
-    if (res.status === "sent") {
-      sentCount++;
-      await admin
-        .from("appointments")
-        .update(
-          is24h
-            ? { reminder_24h_sent_at: new Date().toISOString() }
-            : { reminder_48h_sent_at: new Date().toISOString() }
-        )
-        .eq("id", row.id);
+      if (res.status === "sent") {
+        retentionSent++;
+        await admin.from("client_retention_logs").insert({
+          business_id: bundle.business.id,
+          client_id: c.id,
+          channel: "email",
+          days_since_last_visit:
+            c.daysSinceLastVisit || bundle.retentionRules.daysSinceLastVisit,
+        });
+      }
     }
   }
 
   return NextResponse.json({
     ok: true,
     keepAlive: true,
-    checked: (candidates || []).length,
-    remindersSent: sentCount,
+    checkedUpcoming: (candidates || []).length,
+    upcomingSent,
+    retentionSent,
   });
 }
 

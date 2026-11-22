@@ -100,6 +100,93 @@ export interface NotificationSettings {
   transactionalReserve: number;
 }
 
+export interface RetentionRulesSettings {
+  retentionEnabled: boolean;
+  daysSinceLastVisit: number;
+  cooldownDays: number;
+  whatsappTemplate: string;
+}
+
+export interface ExpenseCategoriesSettings {
+  categories: string[];
+}
+
+export interface PaymentMethodRecord {
+  id: string;
+  business_id: string;
+  name: string;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface PaymentRecord {
+  id: string;
+  business_id: string;
+  appointment_id: string | null;
+  client_id: string | null;
+  payment_method_id: string | null;
+  payment_type: "deposit" | "balance" | "direct_sale";
+  amount_clp: number;
+  reference_note: string | null;
+  paid_at: string;
+  payment_method?: { name: string } | null;
+  client?: { first_name: string; last_name: string | null } | null;
+}
+
+export interface ExpenseRecord {
+  id: string;
+  business_id: string;
+  expense_date: string;
+  category: string;
+  description: string | null;
+  amount_clp: number;
+  payment_method_id: string | null;
+  created_at: string;
+  payment_method?: { name: string } | null;
+}
+
+export interface ClientNoteRecord {
+  id: string;
+  business_id: string;
+  client_id: string;
+  appointment_id: string | null;
+  note: string;
+  photo_url: string | null;
+  created_at: string;
+}
+
+export interface ClientSummaryRecord {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  instagram_handle: string | null;
+  is_new_client: boolean;
+  tags: string[];
+  notes: string | null;
+  no_show_count: number;
+  retention_opt_out: boolean;
+  created_at: string;
+  visitsCount: number;
+  totalSpentClp: number;
+  lastVisitDate: string | null;
+  lastServiceName: string | null;
+  daysSinceLastVisit: number | null;
+  hasUpcomingAppointment: boolean;
+  lastRetentionSentAt: string | null;
+}
+
+export interface EmailLogRecord {
+  id: string;
+  recipient_email: string;
+  template_key: string;
+  category: string;
+  status: string;
+  error_message: string | null;
+  sent_at: string;
+}
+
 export interface BusinessPublicBundle {
   business: Business;
   branding: BrandingSettings;
@@ -109,6 +196,8 @@ export interface BusinessPublicBundle {
   landingContent: LandingContentSettings;
   policies: PoliciesSettings;
   notifications: NotificationSettings;
+  retentionRules: RetentionRulesSettings;
+  expenseCategories: string[];
 }
 
 export interface StaffMember {

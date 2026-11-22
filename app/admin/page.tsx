@@ -5,6 +5,7 @@ import {
   getAuthenticatedAdminContext,
   getPublicCatalog,
 } from "@/lib/services/businessService";
+import { getPaymentMethodsForBusiness } from "@/lib/services/financeService";
 import { AdminTodayClient } from "@/components/admin/AdminTodayClient";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +16,11 @@ export default async function AdminTodayPage() {
     redirect("/admin/login");
   }
 
-  const [bundle, catalog, dashboard] = await Promise.all([
+  const [bundle, catalog, dashboard, paymentMethods] = await Promise.all([
     getActiveBusinessBundle(),
     getPublicCatalog(ctx.business.id),
     getAdminDashboardData(ctx.business.id, ctx.business.timezone),
+    getPaymentMethodsForBusiness(ctx.business.id),
   ]);
 
   return (
@@ -32,6 +34,7 @@ export default async function AdminTodayPage() {
       services={catalog.services}
       addons={catalog.addons}
       staff={catalog.staff}
+      paymentMethods={paymentMethods}
       depositDefaultClp={bundle.paymentBank.depositAmountClp}
     />
   );
