@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lebrunee Nails">
+  <defs>
+    <linearGradient id="lbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D9267B"/>
+      <stop offset="100%" stop-color="#9D174D"/>
+    </linearGradient>
+    <linearGradient id="goldSpark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#lbGrad)"/>
+  <circle cx="256" cy="256" r="196" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="3"/>
+  <path d="M168 176v160h92M280 176h46c28 0 46 16 46 39 0 18-11 31-27 36 20 5 33 20 33 41 0 26-20 44-50 44h-48V176zm44 64c15 0 24-7 24-18s-9-18-24-18h-16v36h16zm4 68c17 0 27-8 27-21s-10-21-27-21h-20v42h20z" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M382 118l8 22 22 8-22 8-8 22-8-22-22-8 22-8z" fill="url(#goldSpark)"/>
+  <path d="M128 362l5 14 14 5-14 5-5 14-5-14-14-5 14-5z" fill="url(#goldSpark)"/>
+</svg>

@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), Georgia, serif;
+}
+
+:root {
+  --brand-primary: #c81e6a;
+  --brand-accent: #9d174d;
+  --brand-soft: #fff7fa;
+  --ink-primary: #1f141b;
+  --ink-muted: #6c5763;
+  --surface-card: #ffffff;
+  --border-subtle: #f1dfe8;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--brand-soft);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Prevent Safari iOS auto-zoom on form controls */
+input,
+select,
+textarea {
+  font-size: max(1rem, 1em);
+}
+
+/* High-contrast accessible focus ring */
+:where(a:any-link, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Native <dialog> top-layer scroll containment */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(24, 15, 22, 0.52);
+  backdrop-filter: blur(4px);
+}
+
+/* Validation feedback only after interaction */
+:is(input, select, textarea):user-invalid {
+  border-color: #dc2626;
+  background-color: #fef2f2;
+}
+
+/* Accessible visually hidden helper */
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
