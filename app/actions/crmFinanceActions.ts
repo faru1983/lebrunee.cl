@@ -18,6 +18,7 @@ import {
   getTodayInTimezone,
   minutesToTime,
   normalizeEmail,
+  normalizeInstagramHandle,
   normalizePersonName,
   timeToMinutes,
 } from "@/lib/utils";
@@ -223,7 +224,7 @@ export async function updateClientProfileAction(payload: {
         email: normalizeEmail(payload.email),
         phone: phone || null,
         birth_date: cleanBirthDate,
-        instagram_handle: payload.instagramHandle.replace(/^@/, "").trim() || null,
+        instagram_handle: normalizeInstagramHandle(payload.instagramHandle) || null,
         tags: payload.tags,
         notes: payload.notes.trim() || null,
         retention_opt_out: payload.retentionOptOut,

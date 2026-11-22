@@ -10,6 +10,10 @@
 
 ## Últimos Cambios
 
+### 22-11-2026 — Orden y normalización del formulario Paso 3 en `/reservar`
+- **Alineación y orden:** En `BookingWizard.tsx`, `WhatsApp` e `Instagram` comparten fila y `Fecha de cumpleaños (opcional)` ubica su texto de ayuda debajo del `<input>`, eliminando la desalineación vertical.
+- **Normalización y máscaras:** Agregado `normalizeInstagramHandle` en `lib/utils.ts` (usado en `BookingWizard.tsx`, `bookingService.ts` y `crmFinanceActions.ts`). `Nombre`/`Apellidos` se normalizan con primera mayúscula (`normalizePersonName`), `Correo` e `Instagram` en minúsculas. `WhatsApp` e `Instagram` inician limpios, agregan `+56 ` / `@` al enfocar y vuelven a vacío en `onBlur` si no se completan; en DB se guardan en E.164 limpio (`+569...`) y handle sin `@`.
+
 ### 22-11-2026 — Verificación previa de correo y precarga de ficha en `/reservar`
 - **Flujo OTP primero + Carga automática de ficha:** En `/reservar` (`BookingWizard.tsx`, `app/reservar/page.tsx`), cuando `requireClientOtp` está activo, el Paso 3 ahora solicita primero el correo y el código OTP de 6 dígitos; al validarse (o si ya existe sesión SSR activa), `getVerifiedClientProfile` (`lib/services/bookingService.ts`) + `getVerifiedClientProfileAction` (`app/actions/bookingActions.ts`) cargan automáticamente nombre, apellidos, WhatsApp, cumpleaños e Instagram desde `clients` con resumen editable en 1 toque.
 - **Preservación de Instagram:** `createBookingCore` conserva `instagram_handle` previo si el campo viene vacío al actualizar una clienta existente.

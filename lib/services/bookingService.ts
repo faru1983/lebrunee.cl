@@ -20,6 +20,7 @@ import {
   hoursUntilAppointment,
   minutesToTime,
   normalizeEmail,
+  normalizeInstagramHandle,
   normalizePersonName,
   resolveTemplate,
   timeToMinutes,
@@ -66,7 +67,7 @@ export async function getVerifiedClientProfile(params: {
     firstName: client.first_name || "",
     lastName: client.last_name || "",
     email: cleanEmail,
-    phone: client.phone || "+56 9 ",
+    phone: client.phone || "",
     birthDate: client.birth_date || "",
     instagramHandle: client.instagram_handle || "",
     isNewClient: false,
@@ -158,9 +159,7 @@ export async function createBookingCore(params: {
   const firstName = normalizePersonName(input.firstName);
   const lastName = normalizePersonName(input.lastName);
   const birthDate = input.birthDate?.trim() || null;
-  const cleanIg = input.instagramHandle
-    ? input.instagramHandle.replace(/^@/, "").trim()
-    : null;
+  const cleanIg = normalizeInstagramHandle(input.instagramHandle || "") || null;
 
   const { data: existingClient } = await admin
     .from("clients")

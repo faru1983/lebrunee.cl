@@ -23,6 +23,7 @@ import {
   getVerifiedClientProfileAction,
 } from "@/app/actions/bookingActions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatPhoneDisplay, isValidPhone, normalizePhone } from "@/lib/phone";
 import type {
   BusinessPublicBundle,
   PaymentBankSettings,
@@ -38,6 +39,8 @@ import {
   formatDateLongEs,
   formatDateShortEs,
   normalizeEmail,
+  normalizeInstagramHandle,
+  normalizePersonName,
 } from "@/lib/utils";
 
 interface BookingWizardProps {
@@ -90,16 +93,23 @@ export function BookingWizard({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
 
-  const [firstName, setFirstName] = useState(initialClientProfile?.firstName || "");
-  const [lastName, setLastName] = useState(initialClientProfile?.lastName || "");
+  const [firstName, setFirstName] = useState(
+    initialClientProfile?.firstName ? normalizePersonName(initialClientProfile.firstName) : ""
+  );
+  const [lastName, setLastName] = useState(
+    initialClientProfile?.lastName ? normalizePersonName(initialClientProfile.lastName) : ""
+  );
   const [email, setEmail] = useState(
-    initialClientProfile?.email || initialVerifiedEmail || ""
+    normalizeEmail(initialClientProfile?.email || initialVerifiedEmail || "")
   );
-  const [phone, setPhone] = useState(initialClientProfile?.phone || "+56 9 ");
+  const [phone, setPhone] = useState(
+    initialClientProfile?.phone ? formatPhoneDisplay(initialClientProfile.phone) : ""
+  );
   const [birthDate, setBirthDate] = useState(initialClientProfile?.birthDate || "");
-  const [instagramHandle, setInstagramHandle] = useState(
-    initialClientProfile?.instagramHandle || ""
-  );
+  const [instagramHandle, setInstagramHandle] = useState(() => {
+    const clean = normalizeInstagramHandle(initialClientProfile?.instagramHandle || "");
+    return clean ? `@${clean}` : "";
+  });
   const [isNewClient, setIsNewClient] = useState(
     initialClientProfile ? initialClientProfile.isNewClient : true
   );
@@ -258,11 +268,12 @@ export function BookingWizard({
       setVerifiedEmail(cleanEmail);
       const res = await getVerifiedClientProfileAction();
       if (res.success && res.profile) {
-        setFirstName(res.profile.firstName);
-        setLastName(res.profile.lastName);
-        setPhone(res.profile.phone);
-        setBirthDate(res.profile.birthDate);
-        setInstagramHandle(res.profile.instagramHandle);
+        const cleanIg = normalizeInstagramHandle(res.profile.instagramHandle || "");
+        setFirstName(normalizePersonName(res.profile.firstName || ""));
+        setLastName(normalizePersonName(res.profile.lastName || ""));
+        setPhone(res.profile.phone ? formatPhoneDisplay(res.profile.phone) : "");
+        setBirthDate(res.profile.birthDate || "");
+        setInstagramHandle(cleanIg ? `@${cleanIg}` : "");
         setIsNewClient(false);
         setLoadedProfileFound(true);
         setEditingProfile(false);
@@ -286,7 +297,7 @@ export function BookingWizard({
     setEmail("");
     setFirstName("");
     setLastName("");
-    setPhone("+56 9 ");
+    setPhone("");
     setBirthDate("");
     setInstagramHandle("");
     setIsNewClient(true);
@@ -308,7 +319,24 @@ export function BookingWizard({
       return;
     }
 
+    const cleanFirstName = normalizePersonName(firstName);
+    const cleanLastName = normalizePersonName(lastName);
     const cleanEmail = normalizeEmail(email);
+    const cleanPhone = normalizePhone(phone);
+    const cleanInstagram = normalizeInstagramHandle(instagramHandle);
+
+    if (!isValidPhone(cleanPhone)) {
+      setErrorMsg("Ingresa un número de WhatsApp válido (ej. +56 9 1234 5678).");
+      document.getElementById("client-phone")?.focus();
+      return;
+    }
+
+    setFirstName(cleanFirstName);
+    setLastName(cleanLastName);
+    setEmail(cleanEmail);
+    setPhone(formatPhoneDisplay(cleanPhone));
+    setInstagramHandle(cleanInstagram ? `@${cleanInstagram}` : "");
+
     setSubmitting(true);
 
     try {
@@ -318,12 +346,12 @@ export function BookingWizard({
         staffId: selectedStaffId,
         appointmentDate: selectedDate,
         startTime: selectedTime,
-        firstName,
-        lastName,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
         email: cleanEmail,
-        phone,
+        phone: cleanPhone,
         birthDate,
-        instagramHandle,
+        instagramHandle: cleanInstagram,
         isNewClient,
         clientNotes,
       });
@@ -762,10 +790,13 @@ export function BookingWizard({
               type="email"
               required
               autoComplete="email"
+              autoCorrect="off"
+              autoCapitalize="none"
               spellCheck={false}
               disabled={otpSent}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmail((v) => normalizeEmail(v))}
               placeholder="tu@correo.cl"
               className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] disabled:bg-[#faf5f8] disabled:text-[#6c5763] sm:text-sm"
             />
@@ -928,7 +959,7 @@ export function BookingWizard({
                 </div>
                 <div>
                   <dt className="text-xs text-[#7a6571]">WhatsApp</dt>
-                  <dd className="font-medium text-[#1f141b]">{phone}</dd>
+                  <dd className="font-medium text-[#1f141b]">{formatPhoneDisplay(phone)}</dd>
                 </div>
                 {birthDate && (
                   <div>
@@ -936,11 +967,11 @@ export function BookingWizard({
                     <dd className="font-medium text-[#1f141b]">{birthDate}</dd>
                   </div>
                 )}
-                {instagramHandle && (
+                {normalizeInstagramHandle(instagramHandle) && (
                   <div>
                     <dt className="text-xs text-[#7a6571]">Instagram</dt>
                     <dd className="font-medium text-[#1f141b]">
-                      @{instagramHandle.replace(/^@/, "")}
+                      @{normalizeInstagramHandle(instagramHandle)}
                     </dd>
                   </div>
                 )}
@@ -961,6 +992,7 @@ export function BookingWizard({
                   enterKeyHint="next"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
+                  onBlur={() => setFirstName((v) => (v.trim() ? normalizePersonName(v) : ""))}
                   placeholder="Ej. María José"
                   className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
                 />
@@ -979,6 +1011,7 @@ export function BookingWizard({
                   enterKeyHint="next"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
+                  onBlur={() => setLastName((v) => (v.trim() ? normalizePersonName(v) : ""))}
                   placeholder="Ej. González Pérez"
                   className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
                 />
@@ -995,10 +1028,13 @@ export function BookingWizard({
                     type="email"
                     required
                     autoComplete="email"
+                    autoCorrect="off"
+                    autoCapitalize="none"
                     spellCheck={false}
                     enterKeyHint="next"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setEmail((v) => normalizeEmail(v))}
                     placeholder="tu@correo.cl"
                     className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
                   />
@@ -1013,12 +1049,60 @@ export function BookingWizard({
                   id="client-phone"
                   name="phone"
                   type="tel"
+                  inputMode="tel"
                   required
                   autoComplete="tel"
                   enterKeyHint="next"
                   value={phone}
+                  onFocus={() => {
+                    if (!phone.trim()) {
+                      setPhone("+56 ");
+                    }
+                  }}
                   onChange={(e) => setPhone(e.target.value)}
+                  onBlur={() => {
+                    const digits = phone.replace(/\D/g, "");
+                    if (!digits || digits === "56") {
+                      setPhone("");
+                      return;
+                    }
+                    setPhone(formatPhoneDisplay(phone));
+                  }}
                   placeholder="+56 9 1234 5678"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="client-ig" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                  Instagram (opcional)
+                </label>
+                <input
+                  id="client-ig"
+                  name="instagramHandle"
+                  type="text"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  enterKeyHint="next"
+                  value={instagramHandle}
+                  onFocus={() => {
+                    if (!instagramHandle.trim()) {
+                      setInstagramHandle("@");
+                    }
+                  }}
+                  onChange={(e) => {
+                    const cleaned = e.target.value
+                      .replace(/\s+/g, "")
+                      .toLowerCase()
+                      .replace(/^@+/, "@");
+                    setInstagramHandle(cleaned);
+                  }}
+                  onBlur={() => {
+                    const clean = normalizeInstagramHandle(instagramHandle);
+                    setInstagramHandle(clean ? `@${clean}` : "");
+                  }}
+                  placeholder="@tuusuario"
                   className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
                 />
               </div>
@@ -1027,9 +1111,6 @@ export function BookingWizard({
                 <label htmlFor="client-bday" className="mb-1 block text-sm font-medium text-[#1f141b]">
                   Fecha de cumpleaños (opcional)
                 </label>
-                <span id="bday-hint" className="mb-1 block text-xs text-[#6c5763]">
-                  Para enviarte un regalito en tu cumpleaños.
-                </span>
                 <input
                   id="client-bday"
                   name="birthDate"
@@ -1040,27 +1121,9 @@ export function BookingWizard({
                   onChange={(e) => setBirthDate(e.target.value)}
                   className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
                 />
-              </div>
-
-              <div>
-                <label htmlFor="client-ig" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                  Instagram (opcional)
-                </label>
-                <span className="mb-1 block text-xs text-transparent select-none" aria-hidden="true">
-                  .
+                <span id="bday-hint" className="mt-1 block text-xs text-[#6c5763]">
+                  Para enviarte un regalito en tu cumpleaños.
                 </span>
-                <input
-                  id="client-ig"
-                  name="instagramHandle"
-                  type="text"
-                  autoCorrect="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  value={instagramHandle}
-                  onChange={(e) => setInstagramHandle(e.target.value)}
-                  placeholder="@tuusuario"
-                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
-                />
               </div>
 
               {!loadedProfileFound && (

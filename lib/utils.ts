@@ -113,6 +113,10 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+export function normalizeInstagramHandle(input: string): string {
+  return input.trim().replace(/\s+/g, "").replace(/^@+/, "").toLowerCase();
+}
+
 export function slugify(text: string): string {
   return text
     .normalize("NFD")
