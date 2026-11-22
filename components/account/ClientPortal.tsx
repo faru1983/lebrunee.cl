@@ -19,6 +19,7 @@ import {
   getAvailableDatesAction,
   linkClientSessionAction,
   rescheduleClientAppointmentAction,
+  updateClientBirthDateAction,
 } from "@/app/actions/bookingActions";
 import { ModalDialog } from "@/components/ui/ModalDialog";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -40,6 +41,7 @@ import {
 interface ClientPortalProps {
   bundle: BusinessPublicBundle;
   userEmail: string | null;
+  clientBirthDate: string | null;
   appointments: AppointmentRecord[];
   exactAddress: string | null;
   addressNotes: string | null;
@@ -74,11 +76,14 @@ const STATUS_BADGE: Record<
 export function ClientPortal({
   bundle,
   userEmail,
+  clientBirthDate,
   appointments,
   exactAddress,
   addressNotes,
 }: ClientPortalProps) {
   const router = useRouter();
+  const [birthDateInput, setBirthDateInput] = useState(clientBirthDate || "");
+  const [savingBday, setSavingBday] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
@@ -338,6 +343,49 @@ export function ClientPortal({
         <div role="status" className="rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
           {message}
         </div>
+      )}
+
+      {appointments.length > 0 && (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!birthDateInput) return;
+            setSavingBday(true);
+            setErrorMsg(null);
+            try {
+              const res = await updateClientBirthDateAction(birthDateInput);
+              if (!res.success) setErrorMsg(res.error);
+              else {
+                setMessage("¡Cumpleaños guardado! Te enviaremos un regalito en tu día.");
+                router.refresh();
+              }
+            } finally {
+              setSavingBday(false);
+            }
+          }}
+          className="flex flex-col gap-3 rounded-3xl border border-[#f1dfe8] bg-white p-4 sm:flex-row sm:items-end sm:justify-between"
+        >
+          <div className="flex-1">
+            <label htmlFor="my-bday" className="mb-1 block text-xs font-semibold text-[#1f141b]">
+              Mi fecha de cumpleaños (para regalitos de {bundle.business.name})
+            </label>
+            <input
+              id="my-bday"
+              type="date"
+              autoComplete="bday"
+              value={birthDateInput}
+              onChange={(e) => setBirthDateInput(e.target.value)}
+              className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm sm:max-w-xs"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={savingBday || !birthDateInput}
+            className="min-h-11 shrink-0 rounded-full border border-[var(--brand-primary)] px-5 text-xs font-semibold text-[var(--brand-primary)] disabled:opacity-50"
+          >
+            {savingBday ? "Guardando..." : "Guardar cumpleaños"}
+          </button>
+        </form>
       )}
 
       {appointments.length === 0 ? (

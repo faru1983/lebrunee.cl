@@ -21,8 +21,8 @@ const MORE_LINKS = [
   },
   {
     href: "/admin/comunicaciones",
-    title: "Comunicaciones y Mantención",
-    desc: "Recordatorios automáticos tras XX días y cuota de Resend.",
+    title: "Comunicaciones y CRM",
+    desc: "Recordatorios de citas, mantención (XX días), cumpleaños y cuota de Resend.",
     icon: MailCheck,
   },
   {

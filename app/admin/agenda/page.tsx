@@ -7,13 +7,33 @@ import {
 } from "@/lib/services/businessService";
 import { getPaymentMethodsForBusiness } from "@/lib/services/financeService";
 import { addDaysToIsoDate, getTodayInTimezone } from "@/lib/utils";
-import { AdminAgendaClient } from "@/components/admin/AdminAgendaClient";
+import {
+  AdminAgendaClient,
+  type AgendaFilterStatus,
+} from "@/components/admin/AdminAgendaClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminAgendaPage() {
+const AGENDA_STATUS_MAP: Record<string, AgendaFilterStatus> = {
+  all: "all",
+  pending_deposit: "pending_deposit",
+  confirmed: "confirmed",
+  completed: "completed",
+  cancelled: "cancelled",
+  no_show: "no_show",
+};
+
+export default async function AdminAgendaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const ctx = await getAuthenticatedAdminContext();
   if (!ctx) redirect("/admin/login");
+
+  const params = await searchParams;
+  const initialStatus: AgendaFilterStatus =
+    (params.status && AGENDA_STATUS_MAP[params.status.toLowerCase()]) || "all";
 
   const today = getTodayInTimezone(ctx.business.timezone);
   const fromDate = addDaysToIsoDate(today, -14);
@@ -28,7 +48,9 @@ export default async function AdminAgendaPage() {
 
   return (
     <AdminAgendaClient
+      key={initialStatus}
       today={today}
+      initialStatus={initialStatus}
       appointments={appointments}
       services={catalog.services}
       addons={catalog.addons}

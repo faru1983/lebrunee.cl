@@ -1,11 +1,12 @@
 import { createSupabaseAdminClient, hasValidServiceRoleKey } from "@/lib/supabase/server";
 import type {
   AppointmentRecord,
+  BirthdayRulesSettings,
   ClientNoteRecord,
   ClientSummaryRecord,
   RetentionRulesSettings,
 } from "@/lib/types";
-import { getTodayInTimezone } from "@/lib/utils";
+import { addDaysToIsoDate, getTodayInTimezone } from "@/lib/utils";
 
 function diffDaysIso(fromIso: string, toIso: string): number {
   const [y1, m1, d1] = fromIso.split("-").map(Number);
@@ -22,12 +23,13 @@ export async function getAdminClientsList(
 
   const admin = createSupabaseAdminClient();
   const today = getTodayInTimezone(timezone);
+  const currentYear = Number(today.slice(0, 4));
 
-  const [clientsRes, apptsRes, retLogsRes] = await Promise.all([
+  const [clientsRes, apptsRes, retLogsRes, bdayLogsRes] = await Promise.all([
     admin
       .from("clients")
       .select(
-        "id, first_name, last_name, email, phone, instagram_handle, is_new_client, tags, notes, no_show_count, retention_opt_out, created_at"
+        "id, first_name, last_name, email, phone, instagram_handle, is_new_client, tags, notes, no_show_count, retention_opt_out, birth_date, created_at"
       )
       .eq("business_id", businessId)
       .order("created_at", { ascending: false }),
@@ -43,6 +45,12 @@ export async function getAdminClientsList(
       .select("client_id, sent_at")
       .eq("business_id", businessId)
       .order("sent_at", { ascending: false }),
+    admin
+      .from("client_birthday_logs")
+      .select("client_id, birthday_year")
+      .eq("business_id", businessId)
+      .eq("birthday_year", currentYear)
+      .eq("channel", "email"),
   ]);
 
   const apptsByClient = new Map<
@@ -75,6 +83,11 @@ export async function getAdminClientsList(
     }
   }
 
+  const birthdaySentYearMap = new Map<string, number>();
+  for (const b of bdayLogsRes.data || []) {
+    birthdaySentYearMap.set(b.client_id, b.birthday_year);
+  }
+
   return (clientsRes.data || []).map((c) => {
     const list = apptsByClient.get(c.id) || [];
     const completed = list
@@ -104,6 +117,7 @@ export async function getAdminClientsList(
         | "daysSinceLastVisit"
         | "hasUpcomingAppointment"
         | "lastRetentionSentAt"
+        | "lastBirthdayYearSent"
       >),
       visitsCount: completed.length,
       totalSpentClp,
@@ -112,6 +126,7 @@ export async function getAdminClientsList(
       daysSinceLastVisit,
       hasUpcomingAppointment,
       lastRetentionSentAt: lastRetentionByClient.get(c.id) || null,
+      lastBirthdayYearSent: birthdaySentYearMap.get(c.id) ?? null,
     };
   });
 }
@@ -171,4 +186,40 @@ export function filterRetentionCandidates(
       return true;
     })
     .sort((a, b) => (b.daysSinceLastVisit || 0) - (a.daysSinceLastVisit || 0));
+}
+
+export function filterBirthdayDueToday(
+  clients: ClientSummaryRecord[],
+  rules: BirthdayRulesSettings,
+  todayIso: string
+): ClientSummaryRecord[] {
+  const currentYear = Number(todayIso.slice(0, 4));
+  const targetDate = addDaysToIsoDate(todayIso, Math.max(0, rules.daysBefore || 0));
+  const targetMonthDay = targetDate.slice(5, 10); // "MM-DD"
+
+  return clients.filter((c) => {
+    if (c.retention_opt_out || !c.birth_date) return false;
+    if (c.lastBirthdayYearSent === currentYear) return false;
+    return c.birth_date.slice(5, 10) === targetMonthDay;
+  });
+}
+
+export function getUpcomingBirthdays(
+  clients: ClientSummaryRecord[],
+  todayIso: string,
+  windowDays = 14
+): Array<ClientSummaryRecord & { daysUntilBirthday: number }> {
+  const validDates = new Map<string, number>();
+  for (let i = 0; i <= windowDays; i++) {
+    const mmdd = addDaysToIsoDate(todayIso, i).slice(5, 10);
+    if (!validDates.has(mmdd)) validDates.set(mmdd, i);
+  }
+
+  return clients
+    .filter((c) => c.birth_date && validDates.has(c.birth_date.slice(5, 10)))
+    .map((c) => ({
+      ...c,
+      daysUntilBirthday: validDates.get(c.birth_date!.slice(5, 10))!,
+    }))
+    .sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
 }

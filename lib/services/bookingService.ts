@@ -19,8 +19,8 @@ import {
   hoursUntilAppointment,
   minutesToTime,
   normalizeEmail,
+  normalizePersonName,
   resolveTemplate,
-  splitFullName,
   timeToMinutes,
 } from "@/lib/utils";
 import type { z } from "zod";
@@ -113,14 +113,16 @@ export async function createBookingCore(params: {
   const endTime = minutesToTime(startMin + totalDuration);
 
   // Upsert Client
-  const { firstName, lastName } = splitFullName(input.fullName);
+  const firstName = normalizePersonName(input.firstName);
+  const lastName = normalizePersonName(input.lastName);
+  const birthDate = input.birthDate?.trim() || null;
   const cleanIg = input.instagramHandle
     ? input.instagramHandle.replace(/^@/, "").trim()
     : null;
 
   const { data: existingClient } = await admin
     .from("clients")
-    .select("id, auth_user_id")
+    .select("id, auth_user_id, birth_date")
     .eq("business_id", businessId)
     .eq("email", email)
     .maybeSingle();
@@ -135,6 +137,7 @@ export async function createBookingCore(params: {
         last_name: lastName || null,
         phone,
         instagram_handle: cleanIg,
+        birth_date: birthDate || existingClient.birth_date || null,
         auth_user_id: existingClient.auth_user_id || authUserId,
         updated_at: new Date().toISOString(),
       })
@@ -150,6 +153,7 @@ export async function createBookingCore(params: {
         last_name: lastName || null,
         phone,
         instagram_handle: cleanIg,
+        birth_date: birthDate,
         is_new_client: input.isNewClient,
       })
       .select("id")

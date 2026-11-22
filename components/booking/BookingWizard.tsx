@@ -84,9 +84,11 @@ export function BookingWizard({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
 
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState(initialVerifiedEmail || "");
   const [phone, setPhone] = useState("+56 9 ");
+  const [birthDate, setBirthDate] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [isNewClient, setIsNewClient] = useState(true);
   const [clientNotes, setClientNotes] = useState("");
@@ -247,9 +249,11 @@ export function BookingWizard({
         staffId: selectedStaffId,
         appointmentDate: selectedDate,
         startTime: selectedTime,
-        fullName,
+        firstName,
+        lastName,
         email: cleanEmail,
         phone,
+        birthDate,
         instagramHandle,
         isNewClient,
         clientNotes,
@@ -669,20 +673,38 @@ export function BookingWizard({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label htmlFor="full-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
-                Nombre completo <span className="text-red-600">*</span>
+            <div>
+              <label htmlFor="first-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                Nombre <span className="text-red-600">*</span>
               </label>
               <input
-                id="full-name"
-                name="fullName"
+                id="first-name"
+                name="firstName"
                 type="text"
                 required
-                autoComplete="name"
+                autoComplete="given-name"
                 enterKeyHint="next"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ej. Camila Rojas"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Ej. María José"
+                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="last-name" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                Apellidos <span className="text-red-600">*</span>
+              </label>
+              <input
+                id="last-name"
+                name="lastName"
+                type="text"
+                required
+                autoComplete="family-name"
+                enterKeyHint="next"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Ej. González Pérez"
                 className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
               />
             </div>
@@ -725,9 +747,31 @@ export function BookingWizard({
             </div>
 
             <div>
+              <label htmlFor="client-bday" className="mb-1 block text-sm font-medium text-[#1f141b]">
+                Fecha de cumpleaños (opcional)
+              </label>
+              <span id="bday-hint" className="mb-1 block text-xs text-[#6c5763]">
+                Para enviarte un regalito en tu cumpleaños.
+              </span>
+              <input
+                id="client-bday"
+                name="birthDate"
+                type="date"
+                autoComplete="bday"
+                aria-describedby="bday-hint"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+              />
+            </div>
+
+            <div>
               <label htmlFor="client-ig" className="mb-1 block text-sm font-medium text-[#1f141b]">
                 Instagram (opcional)
               </label>
+              <span className="mb-1 block text-xs text-transparent select-none" aria-hidden="true">
+                .
+              </span>
               <input
                 id="client-ig"
                 name="instagramHandle"
@@ -742,7 +786,7 @@ export function BookingWizard({
               />
             </div>
 
-            <div className="flex items-center pt-5">
+            <div className="sm:col-span-2 flex items-center pt-1">
               <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-[#1f141b]">
                 <input
                   type="checkbox"

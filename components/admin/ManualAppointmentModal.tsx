@@ -36,9 +36,11 @@ export function ManualAppointmentModal({
   const [slots, setSlots] = useState<TimeSlotOption[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [startTime, setStartTime] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("+56 9 ");
+  const [birthDate, setBirthDate] = useState("");
   const [confirmImmediately, setConfirmImmediately] = useState(true);
   const [depositPaidClp, setDepositPaidClp] = useState(depositDefaultClp);
   const [sendEmail, setSendEmail] = useState(false);
@@ -88,9 +90,11 @@ export function ManualAppointmentModal({
         staffId,
         appointmentDate: dateStr,
         startTime,
-        fullName,
+        firstName,
+        lastName,
         email,
         phone,
+        birthDate,
         confirmImmediately,
         depositPaidClp: confirmImmediately ? depositPaidClp : 0,
         sendEmail,
@@ -102,9 +106,11 @@ export function ManualAppointmentModal({
         return;
       }
 
-      setFullName("");
+      setFirstName("");
+      setLastName("");
       setEmail("");
       setPhone("+56 9 ");
+      setBirthDate("");
       setAdminNotes("");
       onCreated();
       onClose();
@@ -251,16 +257,29 @@ export function ManualAppointmentModal({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label htmlFor="m-name" className="mb-1 block text-xs font-semibold">
+          <div>
+            <label htmlFor="m-fname" className="mb-1 block text-xs font-semibold">
               Nombre clienta
             </label>
             <input
-              id="m-name"
+              id="m-fname"
               type="text"
               required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="m-lname" className="mb-1 block text-xs font-semibold">
+              Apellidos
+            </label>
+            <input
+              id="m-lname"
+              type="text"
+              required
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
               className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
             />
           </div>
@@ -287,6 +306,18 @@ export function ManualAppointmentModal({
               required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="m-bday" className="mb-1 block text-xs font-semibold">
+              Cumpleaños (opcional)
+            </label>
+            <input
+              id="m-bday"
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
               className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
             />
           </div>

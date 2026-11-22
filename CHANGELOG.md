@@ -5,6 +5,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Unreleased]
 
 ### Added
+- Regalo de cumpleaños automático en `/admin/comunicaciones?tab=cumpleanos` y cron diario `/api/cron/reminders`, respaldado por `clients.birth_date` y dedup anual en `client_birthday_logs`.
+- Campo opcional de cumpleaños (`Día + Mes + Año`) y separación de `Nombre` + `Apellidos` en `/reservar`, creación manual de citas, `/mi-cuenta` y `/admin/clients/[id]`.
+- Sincronización de pestañas y filtros por query string en Admin: `/admin/settings?tab=...`, `/admin/comunicaciones?tab=...`, `/admin/finanzas?tab=...` y `/admin/agenda?status=...`.
+
+### Changed
+- Eliminada duplicación entre `/admin/settings?tab=resend` (credenciales Resend + plantillas transaccionales de reserva) y `/admin/comunicaciones` (recordatorios de citas, mantención tras `XX` días, cumpleaños e historial/cuota Resend).
+
+### Added (Etapas 1-2)
 - Módulo CRM (`/admin/clients`, `/admin/clients/[id]`) con ficha técnica de uñas e historial de visitas/pagos.
 - Módulo Finanzas (`/admin/finanzas`) con balance mensual, desglose por medio de pago/servicios, ventas rápidas y registro móvil de gastos.
 - Modal de detalle y cierre de cita (`AppointmentDetailModal`) con cobro de saldo + extras en mesa y reprogramación desde Admin.

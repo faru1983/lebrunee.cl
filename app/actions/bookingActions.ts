@@ -134,6 +134,33 @@ export async function linkClientSessionAction() {
   return { ok: true };
 }
 
+export async function updateClientBirthDateAction(birthDate: string) {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim())) {
+      return { success: false as const, error: "Fecha inválida." };
+    }
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.email) {
+      return { success: false as const, error: "Debes iniciar sesión." };
+    }
+    const bundle = await getActiveBusinessBundle();
+    const admin = createSupabaseAdminClient();
+    await admin
+      .from("clients")
+      .update({ birth_date: birthDate.trim(), updated_at: new Date().toISOString() })
+      .eq("business_id", bundle.business.id)
+      .or(`auth_user_id.eq.${user.id},email.eq.${normalizeEmail(user.email)}`);
+
+    revalidatePath("/mi-cuenta");
+    return { success: true as const };
+  } catch {
+    return { success: false as const, error: "No pudimos guardar tu cumpleaños." };
+  }
+}
+
 export async function rescheduleClientAppointmentAction(rawInput: unknown) {
   try {
     const parsed = RescheduleAppointmentSchema.safeParse(rawInput);

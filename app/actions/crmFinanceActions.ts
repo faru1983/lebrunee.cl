@@ -7,6 +7,7 @@ import {
   getAuthenticatedAdminContext,
 } from "@/lib/services/businessService";
 import {
+  filterBirthdayDueToday,
   filterRetentionCandidates,
   getAdminClientsList,
 } from "@/lib/services/crmService";
@@ -14,6 +15,7 @@ import { sendBusinessEmail } from "@/lib/services/emailService";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { normalizePhone, isValidPhone } from "@/lib/phone";
 import {
+  getTodayInTimezone,
   minutesToTime,
   normalizeEmail,
   normalizePersonName,
@@ -195,6 +197,7 @@ export async function updateClientProfileAction(payload: {
   lastName: string;
   email: string;
   phone: string;
+  birthDate: string;
   instagramHandle: string;
   tags: string[];
   notes: string;
@@ -208,6 +211,10 @@ export async function updateClientProfileAction(payload: {
       return { success: false as const, error: "Teléfono WhatsApp inválido." };
     }
 
+    const cleanBirthDate = /^\d{4}-\d{2}-\d{2}$/.test(payload.birthDate.trim())
+      ? payload.birthDate.trim()
+      : null;
+
     const { error } = await admin
       .from("clients")
       .update({
@@ -215,6 +222,7 @@ export async function updateClientProfileAction(payload: {
         last_name: payload.lastName.trim() ? normalizePersonName(payload.lastName) : null,
         email: normalizeEmail(payload.email),
         phone: phone || null,
+        birth_date: cleanBirthDate,
         instagram_handle: payload.instagramHandle.replace(/^@/, "").trim() || null,
         tags: payload.tags,
         notes: payload.notes.trim() || null,
@@ -491,6 +499,171 @@ export async function sendRetentionEmailBatchAction() {
     return {
       success: false as const,
       error: err instanceof Error ? err.message : "Error enviando recordatorios.",
+    };
+  }
+}
+
+export async function saveAppointmentReminderToggleAction(payload: {
+  autoRemindersEnabled: boolean;
+}) {
+  try {
+    const ctx = await requireAdmin();
+    const bundle = await getActiveBusinessBundle();
+    const admin = createSupabaseAdminClient();
+    const { error } = await admin.from("business_settings").upsert(
+      {
+        business_id: ctx.business.id,
+        category: "notifications",
+        key: "notifications",
+        value: {
+          ...bundle.notifications,
+          autoRemindersEnabled: payload.autoRemindersEnabled,
+        },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "business_id,key" }
+    );
+    if (error) throw new Error(error.message);
+
+    revalidateTag("business-settings", "max");
+    revalidatePath("/admin/comunicaciones");
+    return { success: true as const };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "Error guardando configuración.",
+    };
+  }
+}
+
+export async function saveBirthdayRulesAction(payload: {
+  birthdayEnabled: boolean;
+  daysBefore: number;
+  whatsappTemplate: string;
+}) {
+  try {
+    const ctx = await requireAdmin();
+    const admin = createSupabaseAdminClient();
+    const { error } = await admin.from("business_settings").upsert(
+      {
+        business_id: ctx.business.id,
+        category: "notifications",
+        key: "birthday_rules",
+        value: {
+          birthdayEnabled: payload.birthdayEnabled,
+          daysBefore: Math.max(0, Math.min(30, Math.round(payload.daysBefore))),
+          whatsappTemplate: payload.whatsappTemplate.trim(),
+        },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "business_id,key" }
+    );
+    if (error) throw new Error(error.message);
+
+    revalidateTag("business-settings", "max");
+    revalidatePath("/admin/comunicaciones");
+    return { success: true as const };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "Error guardando regla de cumpleaños.",
+    };
+  }
+}
+
+export async function logBirthdayWhatsappAction(clientId: string) {
+  try {
+    const ctx = await requireAdmin();
+    const bundle = await getActiveBusinessBundle();
+    const today = getTodayInTimezone(bundle.business.timezone);
+    const year = Number(today.slice(0, 4));
+    const admin = createSupabaseAdminClient();
+    await admin.from("client_birthday_logs").upsert(
+      {
+        business_id: ctx.business.id,
+        client_id: clientId,
+        birthday_year: year,
+        channel: "whatsapp",
+      },
+      { onConflict: "business_id,client_id,birthday_year,channel" }
+    );
+    revalidatePath("/admin/comunicaciones");
+    return { success: true as const };
+  } catch {
+    return { success: false as const };
+  }
+}
+
+export async function sendBirthdayEmailBatchAction() {
+  try {
+    const ctx = await requireAdmin();
+    const bundle = await getActiveBusinessBundle();
+    const today = getTodayInTimezone(bundle.business.timezone);
+    const currentYear = Number(today.slice(0, 4));
+
+    const clients = await getAdminClientsList(
+      ctx.business.id,
+      bundle.business.timezone
+    );
+    const candidates = filterBirthdayDueToday(
+      clients,
+      bundle.birthdayRules,
+      today
+    );
+
+    if (candidates.length === 0) {
+      return {
+        success: true as const,
+        sent: 0,
+        skipped: 0,
+        message: "No hay cumpleaños programados para enviar hoy.",
+      };
+    }
+
+    const admin = createSupabaseAdminClient();
+    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
+    let sent = 0;
+    let skipped = 0;
+
+    for (const c of candidates) {
+      const res = await sendBusinessEmail({
+        businessId: ctx.business.id,
+        to: c.email,
+        templateKey: "birthday_gift",
+        category: "reminder",
+        variables: {
+          nombre: c.first_name,
+          link_reserva: bookingUrl,
+        },
+      });
+
+      if (res.status === "sent") {
+        sent++;
+        await admin.from("client_birthday_logs").upsert(
+          {
+            business_id: ctx.business.id,
+            client_id: c.id,
+            birthday_year: currentYear,
+            channel: "email",
+          },
+          { onConflict: "business_id,client_id,birthday_year,channel" }
+        );
+      } else {
+        skipped++;
+      }
+    }
+
+    revalidatePath("/admin/comunicaciones");
+    return {
+      success: true as const,
+      sent,
+      skipped,
+      message: `Cumpleaños procesados: ${sent} enviados, ${skipped} omitidos.`,
+    };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "Error enviando cumpleaños.",
     };
   }
 }

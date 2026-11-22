@@ -5,6 +5,7 @@ import {
   getPrivateLocationForServer,
 } from "@/lib/services/businessService";
 import {
+  filterBirthdayDueToday,
   filterRetentionCandidates,
   getAdminClientsList,
 } from "@/lib/services/crmService";
@@ -108,13 +109,15 @@ async function handle(request: Request) {
 
   // 2. Configurable Retention Reminders (XX days since last visit)
   let retentionSent = 0;
+  const needsClientList =
+    bundle.retentionRules.retentionEnabled || bundle.birthdayRules.birthdayEnabled;
+  const allClients = needsClientList
+    ? await getAdminClientsList(bundle.business.id, bundle.business.timezone)
+    : [];
+  const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
+
   if (bundle.retentionRules.retentionEnabled) {
-    const allClients = await getAdminClientsList(
-      bundle.business.id,
-      bundle.business.timezone
-    );
     const dueClients = filterRetentionCandidates(allClients, bundle.retentionRules);
-    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
 
     for (const c of dueClients) {
       const res = await sendBusinessEmail({
@@ -143,12 +146,46 @@ async function handle(request: Request) {
     }
   }
 
+  // 3. Configurable Birthday Gift Reminders
+  let birthdaySent = 0;
+  if (bundle.birthdayRules.birthdayEnabled) {
+    const currentYear = Number(today.slice(0, 4));
+    const birthdayDue = filterBirthdayDueToday(allClients, bundle.birthdayRules, today);
+
+    for (const c of birthdayDue) {
+      const res = await sendBusinessEmail({
+        businessId: bundle.business.id,
+        to: c.email,
+        templateKey: "birthday_gift",
+        category: "reminder",
+        variables: {
+          nombre: c.first_name,
+          link_reserva: bookingUrl,
+        },
+      });
+
+      if (res.status === "sent") {
+        birthdaySent++;
+        await admin.from("client_birthday_logs").upsert(
+          {
+            business_id: bundle.business.id,
+            client_id: c.id,
+            birthday_year: currentYear,
+            channel: "email",
+          },
+          { onConflict: "business_id,client_id,birthday_year,channel" }
+        );
+      }
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     keepAlive: true,
     checkedUpcoming: (candidates || []).length,
     upcomingSent,
     retentionSent,
+    birthdaySent,
   });
 }
 

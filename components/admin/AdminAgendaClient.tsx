@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, MessageCircle, Plus, Search, XCircle } from "lucide-react";
 import {
   confirmAppointmentDepositAction,
@@ -19,8 +19,11 @@ import type {
 } from "@/lib/types";
 import { buildWhatsAppUrl, formatClp, formatDateLongEs } from "@/lib/utils";
 
+export type AgendaFilterStatus = "all" | AppointmentStatus;
+
 interface AdminAgendaClientProps {
   today: string;
+  initialStatus?: AgendaFilterStatus;
   appointments: AppointmentRecord[];
   services: ServiceItem[];
   addons: ServiceAddon[];
@@ -39,6 +42,7 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
 
 export function AdminAgendaClient({
   today,
+  initialStatus = "all",
   appointments,
   services,
   addons,
@@ -47,7 +51,17 @@ export function AdminAgendaClient({
   depositDefaultClp,
 }: AdminAgendaClientProps) {
   const router = useRouter();
-  const [filterStatus, setFilterStatus] = useState<"all" | AppointmentStatus>("all");
+  const pathname = usePathname();
+  const [filterStatus, setFilterStatus] = useState<AgendaFilterStatus>(initialStatus);
+
+  function handleSelectStatus(nextStatus: AgendaFilterStatus) {
+    setFilterStatus(nextStatus);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("status", nextStatus);
+      window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+    }
+  }
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<AppointmentRecord | null>(null);
@@ -134,7 +148,7 @@ export function AdminAgendaClient({
             <button
               key={tab.id}
               type="button"
-              onClick={() => setFilterStatus(tab.id)}
+              onClick={() => handleSelectStatus(tab.id)}
               className={`min-h-9 shrink-0 rounded-full px-3.5 text-xs font-semibold ${
                 filterStatus === tab.id
                   ? "bg-[var(--brand-primary)] text-white"

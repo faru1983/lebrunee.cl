@@ -39,6 +39,7 @@ export function AdminClientDetailClient({
   const [lastName, setLastName] = useState(client.last_name || "");
   const [email, setEmail] = useState(client.email);
   const [phone, setPhone] = useState(client.phone || "");
+  const [birthDate, setBirthDate] = useState(client.birth_date || "");
   const [instagram, setInstagram] = useState(client.instagram_handle || "");
   const [tagsText, setTagsText] = useState((client.tags || []).join(", "));
   const [generalNotes, setGeneralNotes] = useState(client.notes || "");
@@ -61,6 +62,7 @@ export function AdminClientDetailClient({
         lastName,
         email,
         phone,
+        birthDate,
         instagramHandle: instagram,
         tags: tagsText
           .split(",")
@@ -244,6 +246,15 @@ export function AdminClientDetailClient({
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold">Fecha de cumpleaños</label>
+            <input
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
               className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
             />
           </div>

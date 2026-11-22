@@ -107,6 +107,12 @@ export interface RetentionRulesSettings {
   whatsappTemplate: string;
 }
 
+export interface BirthdayRulesSettings {
+  birthdayEnabled: boolean;
+  daysBefore: number;
+  whatsappTemplate: string;
+}
+
 export interface ExpenseCategoriesSettings {
   categories: string[];
 }
@@ -167,6 +173,7 @@ export interface ClientSummaryRecord {
   notes: string | null;
   no_show_count: number;
   retention_opt_out: boolean;
+  birth_date: string | null;
   created_at: string;
   visitsCount: number;
   totalSpentClp: number;
@@ -175,6 +182,7 @@ export interface ClientSummaryRecord {
   daysSinceLastVisit: number | null;
   hasUpcomingAppointment: boolean;
   lastRetentionSentAt: string | null;
+  lastBirthdayYearSent: number | null;
 }
 
 export interface EmailLogRecord {
@@ -197,6 +205,7 @@ export interface BusinessPublicBundle {
   policies: PoliciesSettings;
   notifications: NotificationSettings;
   retentionRules: RetentionRulesSettings;
+  birthdayRules: BirthdayRulesSettings;
   expenseCategories: string[];
 }
 
@@ -373,9 +382,16 @@ export const CreatePublicBookingSchema = z.object({
   staffId: z.string().uuid("Profesional inválido"),
   appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
   startTime: z.string().regex(/^\d{2}:\d{2}$/, "Hora inválida"),
-  fullName: z.string().trim().min(2, "Ingresa tu nombre completo").max(120),
+  firstName: z.string().trim().min(2, "Ingresa tu nombre").max(60),
+  lastName: z.string().trim().min(2, "Ingresa tus apellidos").max(80),
   email: z.string().trim().email("Correo electrónico inválido"),
   phone: z.string().trim().min(8, "Ingresa un WhatsApp válido").max(25),
+  birthDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de cumpleaños inválida")
+    .optional()
+    .or(z.literal("")),
   instagramHandle: z.string().trim().max(60).optional().default(""),
   isNewClient: z.boolean().default(true),
   clientNotes: z.string().trim().max(500).optional().default(""),

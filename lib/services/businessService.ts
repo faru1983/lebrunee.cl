@@ -22,6 +22,7 @@ import type {
   PoliciesSettings,
   PrivateLocationSettings,
   RetentionRulesSettings,
+  BirthdayRulesSettings,
   ServiceAddon,
   ServiceCategory,
   ServiceItem,
@@ -129,6 +130,13 @@ const DEFAULT_RETENTION_RULES: RetentionRulesSettings = {
     "Hola {{nombre}}! Ya pasaron {{dias}} días desde tu última cita ({{servicio}}) en {{negocio}}. Te dejo el link para agendar tu mantención: {{link_reserva}}",
 };
 
+const DEFAULT_BIRTHDAY_RULES: BirthdayRulesSettings = {
+  birthdayEnabled: false,
+  daysBefore: 0,
+  whatsappTemplate:
+    "¡Feliz cumpleaños {{nombre}}! Desde {{negocio}} queremos celebrar tu día contigo con un regalo especial en tu próxima cita. Agenda aquí: {{link_reserva}}",
+};
+
 const DEFAULT_EXPENSE_CATEGORIES = [
   "Insumos y Esmaltes",
   "Herramientas y Esterilización",
@@ -161,6 +169,7 @@ function buildFallbackBundle(): BusinessPublicBundle {
     policies: DEFAULT_POLICIES,
     notifications: DEFAULT_NOTIFICATIONS,
     retentionRules: DEFAULT_RETENTION_RULES,
+    birthdayRules: DEFAULT_BIRTHDAY_RULES,
     expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   };
 }
@@ -221,6 +230,10 @@ async function fetchBusinessBundleUncached(slug: string): Promise<BusinessPublic
       ...DEFAULT_RETENTION_RULES,
       ...(map.get("retention_rules") || {}),
     } as RetentionRulesSettings,
+    birthdayRules: {
+      ...DEFAULT_BIRTHDAY_RULES,
+      ...(map.get("birthday_rules") || {}),
+    } as BirthdayRulesSettings,
     expenseCategories:
       (map.get("expense_categories") as ExpenseCategoriesSettings | undefined)
         ?.categories || DEFAULT_EXPENSE_CATEGORIES,

@@ -17,9 +17,10 @@ Todas las tablas operacionales incluyen `business_id` (`UUID` FK → `businesses
 | `availability_rules` | Horarios semanales por día y múltiples tramos | Lectura pública / Admin |
 | `availability_fixed_slots` | Bloques de inicio fijos cuando `slotMode = 'fixed_blocks'` | Lectura pública / Admin |
 | `availability_exceptions` | Bloqueos puntuales o días especiales (`block_day`, `block_range`, `open_custom`) | Lectura pública / Admin |
-| `clients` | CRM de clientas vinculable a `auth.users` (+ `retention_opt_out`) | Propia clienta / Admin |
+| `clients` | CRM de clientas vinculable a `auth.users` (+ `birth_date`, `retention_opt_out`) | Propia clienta / Admin |
 | `client_notes` | Ficha técnica de uñas y notas privadas | Solo Admin |
 | `client_retention_logs` | Auditoría de avisos de mantención (`email` / `whatsapp`) | Solo Admin |
+| `client_birthday_logs` | Auditoría y dedup anual de saludos/regalos de cumpleaños (`email` / `whatsapp`) | Solo Admin |
 | `appointments` | Reservas (`pending_deposit`, `confirmed`, `completed`, `cancelled`, `no_show`) | Propia clienta / Admin |
 | `appointment_items` | Snapshot de servicios y extras elegidos | Propia clienta / Admin |
 | `payment_methods` | Medios de pago configurables | Solo Admin |

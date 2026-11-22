@@ -25,6 +25,7 @@ export default async function MiCuentaPage() {
   let appointments: AppointmentRecord[] = [];
   let exactAddress: string | null = null;
   let addressNotes: string | null = null;
+  let clientBirthDate: string | null = null;
 
   if (user?.email && hasValidServiceRoleKey()) {
     const admin = createSupabaseAdminClient();
@@ -40,12 +41,13 @@ export default async function MiCuentaPage() {
 
     const { data: client } = await admin
       .from("clients")
-      .select("id")
+      .select("id, birth_date")
       .eq("business_id", bundle.business.id)
       .or(`auth_user_id.eq.${user.id},email.eq.${cleanEmail}`)
       .maybeSingle();
 
     if (client) {
+      clientBirthDate = client.birth_date || null;
       const { data: appts } = await admin
         .from("appointments")
         .select("*, staff:staff_members(id, name), items:appointment_items(*)")
@@ -77,6 +79,7 @@ export default async function MiCuentaPage() {
         <ClientPortal
           bundle={bundle}
           userEmail={user?.email || null}
+          clientBirthDate={clientBirthDate}
           appointments={appointments}
           exactAddress={exactAddress}
           addressNotes={addressNotes}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -23,8 +23,11 @@ import type {
 } from "@/lib/types";
 import { formatClp } from "@/lib/utils";
 
+export type FinanzasTabKey = "resumen" | "ingresos" | "gastos";
+
 interface AdminFinanzasClientProps {
   today: string;
+  initialTab?: FinanzasTabKey;
   finance: {
     monthIso: string;
     totalRevenueClp: number;
@@ -42,12 +45,23 @@ interface AdminFinanzasClientProps {
 
 export function AdminFinanzasClient({
   today,
+  initialTab = "resumen",
   finance,
   paymentMethods,
   expenseCategories,
 }: AdminFinanzasClientProps) {
   const router = useRouter();
-  const [tab, setTab] = useState<"resumen" | "ingresos" | "gastos">("resumen");
+  const pathname = usePathname();
+  const [tab, setTab] = useState<FinanzasTabKey>(initialTab);
+
+  function handleSelectTab(nextTab: FinanzasTabKey) {
+    setTab(nextTab);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", nextTab);
+      window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+    }
+  }
   const [saleModal, setSaleModal] = useState(false);
   const [expenseModal, setExpenseModal] = useState(false);
 
@@ -125,7 +139,7 @@ export function AdminFinanzasClient({
               value={finance.monthIso}
               onChange={(e) => {
                 if (e.target.value) {
-                  router.push(`/admin/finanzas?month=${e.target.value}`);
+                  router.push(`/admin/finanzas?month=${e.target.value}&tab=${tab}`);
                 }
               }}
               className="rounded-lg border border-[#e2cbd7] bg-white px-2 py-1 text-xs font-semibold text-[#1f141b]"
@@ -211,7 +225,7 @@ export function AdminFinanzasClient({
           <button
             key={item.id}
             type="button"
-            onClick={() => setTab(item.id)}
+            onClick={() => handleSelectTab(item.id)}
             className={`min-h-10 rounded-full px-4 text-xs font-semibold ${
               tab === item.id
                 ? "bg-[var(--brand-primary)] text-white"

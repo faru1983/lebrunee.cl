@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowRight,
   Building2,
   CreditCard,
   Mail,
@@ -37,9 +39,17 @@ interface AdminSettingsClientProps {
   members: BusinessMemberRecord[];
   templates: EmailTemplateRecord[];
   currentMemberRole: MemberRole;
+  initialTab?: SettingsTabKey;
 }
 
-type TabKey = "brand" | "location" | "bank" | "email" | "team";
+export type SettingsTabKey = "marca" | "ubicacion" | "banco" | "resend" | "equipo";
+
+const TRANSACTIONAL_TEMPLATE_KEYS = new Set([
+  "booking_pending",
+  "booking_confirmed",
+  "booking_rescheduled",
+  "booking_cancelled",
+]);
 
 export function AdminSettingsClient({
   bundle,
@@ -48,9 +58,22 @@ export function AdminSettingsClient({
   members,
   templates,
   currentMemberRole,
+  initialTab = "marca",
 }: AdminSettingsClientProps) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabKey>("brand");
+  const pathname = usePathname();
+  const [tab, setTab] = useState<SettingsTabKey>(initialTab);
+
+  function handleSelectTab(nextTab: SettingsTabKey) {
+    setTab(nextTab);
+    setToast(null);
+    setErrorMsg(null);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", nextTab);
+      window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+    }
+  }
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -69,14 +92,13 @@ export function AdminSettingsClient({
   const [paymentBank, setPaymentBank] = useState(bundle.paymentBank);
   const [policies, setPolicies] = useState(bundle.policies);
 
-  // 4. Resend & Notifications
+  // 4. Resend & Transactional Templates
   const [resendEnabled, setResendEnabled] = useState(resendView.isEnabled);
   const [resendApiKey, setResendApiKey] = useState("");
   const [resendFromEmail, setResendFromEmail] = useState(resendView.fromEmail);
   const [resendFromName, setResendFromName] = useState(resendView.fromName);
   const [resendReplyTo, setResendReplyTo] = useState(resendView.replyTo);
   const [testEmailTo, setTestEmailTo] = useState(bundle.contactPublic.adminNotificationEmail);
-  const [notifications, setNotifications] = useState(bundle.notifications);
   const [templateEdits, setTemplateEdits] = useState(templates);
 
   // 5. Team & Change Own Password
@@ -170,15 +192,9 @@ export function AdminSettingsClient({
         fromName: resendFromName,
         replyTo: resendReplyTo,
       });
-      const r2 = await saveSettingsSectionAction({
-        category: "notifications",
-        key: "notifications",
-        value: notifications as unknown as Record<string, unknown>,
-      });
       if (!r1.success) return setErrorMsg(r1.error);
-      if (!r2.success) return setErrorMsg(r2.error);
       setResendApiKey("");
-      notifyOk("Configuración de Resend y recordatorios guardada.");
+      notifyOk("Configuración de Resend guardada.");
     } finally {
       setBusy(false);
     }
@@ -251,11 +267,11 @@ export function AdminSettingsClient({
       <div className="flex gap-2 overflow-x-auto pb-1">
         {(
           [
-            { id: "brand", label: "Marca y Landing", icon: Building2 },
-            { id: "location", label: "Ubicación", icon: MapPin },
-            { id: "bank", label: "Banco y Políticas", icon: CreditCard },
-            { id: "email", label: "Resend y Correos", icon: Mail },
-            { id: "team", label: "Equipo", icon: Users },
+            { id: "marca", label: "Marca y Landing", icon: Building2 },
+            { id: "ubicacion", label: "Ubicación", icon: MapPin },
+            { id: "banco", label: "Banco y Políticas", icon: CreditCard },
+            { id: "resend", label: "Resend y Correos", icon: Mail },
+            { id: "equipo", label: "Equipo", icon: Users },
           ] as const
         ).map((item) => {
           const Icon = item.icon;
@@ -264,11 +280,7 @@ export function AdminSettingsClient({
             <button
               key={item.id}
               type="button"
-              onClick={() => {
-                setTab(item.id);
-                setToast(null);
-                setErrorMsg(null);
-              }}
+              onClick={() => handleSelectTab(item.id)}
               className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-xs font-semibold transition ${
                 active
                   ? "bg-[var(--brand-primary)] text-white shadow-xs"
@@ -294,7 +306,7 @@ export function AdminSettingsClient({
       )}
 
       {/* TAB 1: BRAND & LANDING */}
-      {tab === "brand" && (
+      {tab === "marca" && (
         <form onSubmit={saveBrandTab} className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -447,7 +459,7 @@ export function AdminSettingsClient({
       )}
 
       {/* TAB 2: LOCATION & CONTACT */}
-      {tab === "location" && (
+      {tab === "ubicacion" && (
         <form onSubmit={saveLocationTab} className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -540,7 +552,7 @@ export function AdminSettingsClient({
       )}
 
       {/* TAB 3: BANK & POLICIES */}
-      {tab === "bank" && (
+      {tab === "banco" && (
         <form onSubmit={saveBankTab} className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5">
           <h2 className="text-sm font-bold text-[#1f141b]">Datos de Transferencia y Abono</h2>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -702,8 +714,8 @@ export function AdminSettingsClient({
         </form>
       )}
 
-      {/* TAB 4: RESEND & EMAIL TEMPLATES */}
-      {tab === "email" && (
+      {/* TAB 4: RESEND & TRANSACTIONAL TEMPLATES */}
+      {tab === "resend" && (
         <div className="space-y-6">
           <form onSubmit={saveResendTab} className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -773,7 +785,7 @@ export function AdminSettingsClient({
                 />
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-semibold">Reply-To</label>
                 <input
                   type="email"
@@ -781,23 +793,6 @@ export function AdminSettingsClient({
                   onChange={(e) => setResendReplyTo(e.target.value)}
                   className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
                 />
-              </div>
-
-              <div className="flex items-center pt-5">
-                <label className="flex items-center gap-2 text-xs font-semibold">
-                  <input
-                    type="checkbox"
-                    checked={notifications.autoRemindersEnabled}
-                    onChange={(e) =>
-                      setNotifications({
-                        ...notifications,
-                        autoRemindersEnabled: e.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 accent-[var(--brand-primary)]"
-                  />
-                  <span>Recordatorios automáticos diarios (24h / 48h)</span>
-                </label>
               </div>
             </div>
 
@@ -832,107 +827,132 @@ export function AdminSettingsClient({
             </div>
           </form>
 
-          {/* Email Templates */}
+          {/* Transactional Booking Email Templates */}
           <div className="space-y-3 rounded-3xl border border-[#eedbe4] bg-white p-5">
-            <h2 className="text-base font-bold text-[#1f141b]">
-              Plantillas de Correo Editables
-            </h2>
-            <p className="text-xs text-[#6c5763]">
-              Variables disponibles: {"{{nombre}}"}, {"{{codigo}}"}, {"{{servicio}}"},{" "}
-              {"{{fecha}}"}, {"{{hora}}"}, {"{{abono}}"}, {"{{direccion}}"}, {"{{negocio}}"}
-            </p>
+            <div>
+              <h2 className="text-base font-bold text-[#1f141b]">
+                Correos Transaccionales de Reserva
+              </h2>
+              <p className="text-xs text-[#6c5763]">
+                Se envían al instante cuando una reserva cambia de estado. Variables:{" "}
+                {"{{nombre}}"}, {"{{codigo}}"}, {"{{servicio}}"}, {"{{fecha}}"},{" "}
+                {"{{hora}}"}, {"{{abono}}"}, {"{{direccion}}"}, {"{{negocio}}"}
+              </p>
+            </div>
 
-            {templateEdits.map((tpl, idx) => (
-              <div
-                key={tpl.id}
-                className="space-y-2.5 rounded-2xl border border-[#f2e4eb] p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-[#1f141b]">{tpl.name}</p>
-                  <label className="flex items-center gap-1.5 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={tpl.is_active}
-                      onChange={(e) =>
-                        setTemplateEdits((prev) =>
-                          prev.map((x, i) =>
-                            i === idx ? { ...x, is_active: e.target.checked } : x
-                          )
-                        )
-                      }
-                    />
-                    <span>Activa</span>
-                  </label>
-                </div>
-
-                <input
-                  type="text"
-                  value={tpl.subject}
-                  onChange={(e) =>
-                    setTemplateEdits((prev) =>
-                      prev.map((x, i) =>
-                        i === idx ? { ...x, subject: e.target.value } : x
-                      )
-                    )
-                  }
-                  placeholder="Asunto"
-                  className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs font-semibold"
-                />
-                <input
-                  type="text"
-                  value={tpl.heading}
-                  onChange={(e) =>
-                    setTemplateEdits((prev) =>
-                      prev.map((x, i) =>
-                        i === idx ? { ...x, heading: e.target.value } : x
-                      )
-                    )
-                  }
-                  placeholder="Encabezado"
-                  className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs"
-                />
-                <textarea
-                  rows={2}
-                  value={tpl.body_text}
-                  onChange={(e) =>
-                    setTemplateEdits((prev) =>
-                      prev.map((x, i) =>
-                        i === idx ? { ...x, body_text: e.target.value } : x
-                      )
-                    )
-                  }
-                  className="w-full rounded-xl border border-[#e2cbd7] p-2.5 text-xs"
-                />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      await saveEmailTemplateAction({
-                        id: tpl.id,
-                        subject: tpl.subject,
-                        heading: tpl.heading,
-                        bodyText: tpl.body_text,
-                        isActive: tpl.is_active,
-                      });
-                      notifyOk(`Plantilla "${tpl.name}" guardada.`);
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                  className="min-h-9 rounded-full border border-[var(--brand-primary)] px-4 text-xs font-semibold text-[var(--brand-primary)]"
+            {templateEdits
+              .filter((tpl) => TRANSACTIONAL_TEMPLATE_KEYS.has(tpl.template_key))
+              .map((tpl) => (
+                <div
+                  key={tpl.id}
+                  className="space-y-2.5 rounded-2xl border border-[#f2e4eb] p-4"
                 >
-                  Guardar plantilla
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-[#1f141b]">{tpl.name}</p>
+                    <label className="flex items-center gap-1.5 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={tpl.is_active}
+                        onChange={(e) =>
+                          setTemplateEdits((prev) =>
+                            prev.map((x) =>
+                              x.id === tpl.id
+                                ? { ...x, is_active: e.target.checked }
+                                : x
+                            )
+                          )
+                        }
+                      />
+                      <span>Activa</span>
+                    </label>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={tpl.subject}
+                    onChange={(e) =>
+                      setTemplateEdits((prev) =>
+                        prev.map((x) =>
+                          x.id === tpl.id ? { ...x, subject: e.target.value } : x
+                        )
+                      )
+                    }
+                    placeholder="Asunto"
+                    className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs font-semibold"
+                  />
+                  <input
+                    type="text"
+                    value={tpl.heading}
+                    onChange={(e) =>
+                      setTemplateEdits((prev) =>
+                        prev.map((x) =>
+                          x.id === tpl.id ? { ...x, heading: e.target.value } : x
+                        )
+                      )
+                    }
+                    placeholder="Encabezado"
+                    className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs"
+                  />
+                  <textarea
+                    rows={2}
+                    value={tpl.body_text}
+                    onChange={(e) =>
+                      setTemplateEdits((prev) =>
+                        prev.map((x) =>
+                          x.id === tpl.id ? { ...x, body_text: e.target.value } : x
+                        )
+                      )
+                    }
+                    className="w-full rounded-xl border border-[#e2cbd7] p-2.5 text-xs"
+                  />
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        await saveEmailTemplateAction({
+                          id: tpl.id,
+                          subject: tpl.subject,
+                          heading: tpl.heading,
+                          bodyText: tpl.body_text,
+                          isActive: tpl.is_active,
+                        });
+                        notifyOk(`Plantilla "${tpl.name}" guardada.`);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    className="min-h-9 rounded-full border border-[var(--brand-primary)] px-4 text-xs font-semibold text-[var(--brand-primary)]"
+                  >
+                    Guardar plantilla
+                  </button>
+                </div>
+              ))}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[#eedbe4] bg-[#fdf9fb] p-5">
+            <div>
+              <p className="text-sm font-bold text-[#1f141b]">
+                Recordatorios de citas, mantención (XX días) y cumpleaños
+              </p>
+              <p className="text-xs text-[#6c5763]">
+                Las automatizaciones proactivas, mensajes de seguimiento y cuota diaria viven en Comunicaciones.
+              </p>
+            </div>
+            <Link
+              href="/admin/comunicaciones?tab=citas"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white"
+            >
+              <span>Ir a Comunicaciones</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       )}
 
       {/* TAB 5: TEAM & ADMIN ACCOUNTS */}
-      {tab === "team" && (
+      {tab === "equipo" && (
         <div className="space-y-5">
           <form
             onSubmit={handleChangeMyPassword}
