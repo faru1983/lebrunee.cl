@@ -420,6 +420,19 @@ export const RescheduleAppointmentSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
+export const UpsertClientProfileSchema = z.object({
+  firstName: z.string().trim().min(2, "Ingresa tu nombre").max(60),
+  lastName: z.string().trim().min(2, "Ingresa tus apellidos").max(80),
+  phone: z.string().trim().min(8, "Ingresa un WhatsApp válido").max(25),
+  birthDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de cumpleaños inválida")
+    .optional()
+    .or(z.literal("")),
+  instagramHandle: z.string().trim().max(60).optional().default(""),
+});
+
 export const ServiceUpsertSchema = z.object({
   id: z.string().uuid().optional(),
   categoryId: z.string().uuid().nullable().optional(),

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
   CalendarClock,
   CheckCircle2,
   Clock,
@@ -12,6 +13,9 @@ import {
   Mail,
   MapPin,
   MessageCircle,
+  Pencil,
+  Sparkles,
+  UserCheck,
   XCircle,
 } from "lucide-react";
 import {
@@ -19,15 +23,17 @@ import {
   getAvailableDatesAction,
   linkClientSessionAction,
   rescheduleClientAppointmentAction,
-  updateClientBirthDateAction,
+  upsertClientProfileAction,
 } from "@/app/actions/bookingActions";
 import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
+import { formatPhoneDisplay, isValidPhone, normalizePhone } from "@/lib/phone";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   AppointmentRecord,
   BusinessPublicBundle,
   TimeSlotOption,
+  VerifiedClientProfile,
 } from "@/lib/types";
 import {
   buildWhatsAppUrl,
@@ -36,13 +42,16 @@ import {
   formatDateShortEs,
   hoursUntilAppointment,
   normalizeEmail,
+  normalizeInstagramHandle,
+  normalizePersonName,
   resolveTemplate,
 } from "@/lib/utils";
 
 interface ClientPortalProps {
   bundle: BusinessPublicBundle;
   userEmail: string | null;
-  clientBirthDate: string | null;
+  initialProfile: VerifiedClientProfile | null;
+  authError?: string | null;
   appointments: AppointmentRecord[];
   exactAddress: string | null;
   addressNotes: string | null;
@@ -77,20 +86,49 @@ const STATUS_BADGE: Record<
 export function ClientPortal({
   bundle,
   userEmail,
-  clientBirthDate,
+  initialProfile,
+  authError,
   appointments,
   exactAddress,
   addressNotes,
 }: ClientPortalProps) {
   const router = useRouter();
-  const [birthDateInput, setBirthDateInput] = useState(clientBirthDate || "");
-  const [savingBday, setSavingBday] = useState(false);
+  const initialHasCompleteProfile = Boolean(
+    initialProfile?.firstName?.trim() && initialProfile?.phone?.trim()
+  );
+
+  // Profile state ("Mi Ficha")
+  const [savedProfile, setSavedProfile] = useState<VerifiedClientProfile | null>(
+    initialProfile
+  );
+  const [editingProfile, setEditingProfile] = useState(!initialHasCompleteProfile);
+  const [firstName, setFirstName] = useState(
+    initialProfile?.firstName ? normalizePersonName(initialProfile.firstName) : ""
+  );
+  const [lastName, setLastName] = useState(
+    initialProfile?.lastName ? normalizePersonName(initialProfile.lastName) : ""
+  );
+  const [phone, setPhone] = useState(
+    initialProfile?.phone ? formatPhoneDisplay(initialProfile.phone) : ""
+  );
+  const [instagramHandle, setInstagramHandle] = useState(() => {
+    const clean = normalizeInstagramHandle(initialProfile?.instagramHandle || "");
+    return clean ? `@${clean}` : "";
+  });
+  const [birthDate, setBirthDate] = useState(initialProfile?.birthDate || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Passwordless login state (Magic Link + 6-digit OTP fallback)
   const [emailInput, setEmailInput] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(
+    authError === "expired"
+      ? "El enlace de acceso expiró o ya fue utilizado. Ingresa tu correo para recibir uno nuevo."
+      : null
+  );
 
   // Reschedule modal state
   const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentRecord | null>(
@@ -104,31 +142,59 @@ export function ClientPortal({
   const [pickedTime, setPickedTime] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function sendMagicLinkAndOtp(targetEmail?: string) {
     setErrorMsg(null);
     setMessage(null);
+    const cleanEmail = normalizeEmail(targetEmail ?? emailInput);
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setErrorMsg("Ingresa un correo electrónico válido.");
+      return;
+    }
+
     setAuthBusy(true);
     try {
       const supabase = createSupabaseBrowserClient();
+      const redirectTo = `${window.location.origin}/auth/callback?next=/mi-cuenta`;
       const { error } = await supabase.auth.signInWithOtp({
-        email: normalizeEmail(emailInput),
-        options: { shouldCreateUser: true },
+        email: cleanEmail,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: redirectTo,
+        },
       });
       if (error) {
-        setErrorMsg(error.message);
+        if (error.message.toLowerCase().includes("rate") || error.status === 429) {
+          setErrorMsg(
+            "Se alcanzó el límite temporal de envíos de correo. Espera unos minutos o avísanos por WhatsApp."
+          );
+        } else {
+          setErrorMsg(error.message);
+        }
         return;
       }
-      setOtpSent(true);
-      setMessage(`Enviamos un código de 6 dígitos a ${normalizeEmail(emailInput)}.`);
+      setEmailInput(cleanEmail);
+      setLinkSent(true);
+      setMessage(
+        `¡Listo! Enviamos un enlace de acceso directo (y código de respaldo) a ${cleanEmail}.`
+      );
     } finally {
       setAuthBusy(false);
     }
   }
 
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    await sendMagicLinkAndOtp();
+  }
+
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
+    setMessage(null);
+    if (otpCode.trim().length < 6) {
+      setErrorMsg("Ingresa el código de 6 dígitos que llegó a tu correo.");
+      return;
+    }
     setAuthBusy(true);
     try {
       const supabase = createSupabaseBrowserClient();
@@ -138,13 +204,57 @@ export function ClientPortal({
         type: "email",
       });
       if (error) {
-        setErrorMsg("Código inválido o expirado.");
+        setErrorMsg("Código inválido o expirado. Solicita un nuevo correo.");
         return;
       }
       await linkClientSessionAction();
       router.refresh();
     } finally {
       setAuthBusy(false);
+    }
+  }
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorMsg(null);
+    setMessage(null);
+
+    const normalizedPhone = normalizePhone(phone);
+    if (!isValidPhone(normalizedPhone)) {
+      setErrorMsg("Ingresa un número de WhatsApp válido (ej. +56 9 1234 5678).");
+      return;
+    }
+
+    const cleanFirstName = normalizePersonName(firstName);
+    const cleanLastName = normalizePersonName(lastName);
+    const cleanIg = normalizeInstagramHandle(instagramHandle);
+
+    setSavingProfile(true);
+    try {
+      const res = await upsertClientProfileAction({
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        phone: normalizedPhone,
+        instagramHandle: cleanIg,
+        birthDate: birthDate.trim(),
+      });
+      if (!res.success) {
+        setErrorMsg(res.error);
+        return;
+      }
+      setFirstName(res.profile.firstName);
+      setLastName(res.profile.lastName);
+      setPhone(formatPhoneDisplay(res.profile.phone));
+      setInstagramHandle(res.profile.instagramHandle ? `@${res.profile.instagramHandle}` : "");
+      setBirthDate(res.profile.birthDate || "");
+      setSavedProfile(res.profile);
+      setEditingProfile(false);
+      setMessage(
+        "¡Tu ficha quedó guardada! La próxima vez que agendes en /reservar tus datos aparecerán listos automáticamente."
+      );
+      router.refresh();
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -219,32 +329,49 @@ export function ClientPortal({
       <section className="mx-auto max-w-md rounded-3xl border border-[#f1dfe8] bg-white p-6 shadow-xs sm:p-8">
         <div className="mb-6 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fdf0f6] text-[var(--brand-primary)]">
-            <Mail className="h-6 w-6" />
+            <Mail className="h-6 w-6" aria-hidden="true" />
           </div>
-          <h1 className="mt-3 font-serif text-3xl font-semibold text-[#1f141b]">
-            Mis Citas
+          <h1
+            id="portal-login-heading"
+            className="mt-3 font-serif text-3xl font-semibold text-[#1f141b]"
+          >
+            Mi Cuenta y Ficha
           </h1>
           <p className="mt-1 text-sm text-[#6c5763]">
-            Ingresa con tu correo sin contraseña. Te enviaremos un código de 6 dígitos.
+            Ingresa sin contraseña para completar tu ficha de {bundle.business.name} o revisar tus
+            citas. Te enviaremos un enlace de acceso directo a tu correo.
           </p>
         </div>
 
         {errorMsg && (
-          <div role="alert" className="mb-4 rounded-2xl bg-red-50 p-3 text-xs font-medium text-red-800">
+          <div
+            role="alert"
+            className="mb-4 rounded-2xl bg-red-50 p-3 text-xs font-medium text-red-800"
+          >
             {errorMsg}
           </div>
         )}
         {message && (
-          <div role="status" className="mb-4 rounded-2xl bg-emerald-50 p-3 text-xs font-medium text-emerald-800">
+          <div
+            role="status"
+            className="mb-4 rounded-2xl bg-emerald-50 p-3 text-xs font-medium text-emerald-800"
+          >
             {message}
           </div>
         )}
 
-        {!otpSent ? (
-          <form onSubmit={handleSendOtp} className="space-y-4">
+        {!linkSent ? (
+          <form
+            aria-labelledby="portal-login-heading"
+            onSubmit={handleSendOtp}
+            className="space-y-4"
+          >
             <div>
-              <label htmlFor="portal-email" className="mb-1 block text-sm font-medium">
-                Correo electrónico
+              <label
+                htmlFor="portal-email"
+                className="mb-1 block text-sm font-medium text-[#1f141b]"
+              >
+                Correo electrónico <span aria-hidden="true" className="text-red-600">*</span>
               </label>
               <input
                 id="portal-email"
@@ -252,84 +379,138 @@ export function ClientPortal({
                 type="email"
                 required
                 autoComplete="email"
+                autoCorrect="off"
+                autoCapitalize="none"
                 spellCheck={false}
+                enterKeyHint="send"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
+                onBlur={() => setEmailInput((v) => normalizeEmail(v))}
                 placeholder="tu@correo.cl"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] px-4 text-base sm:text-sm"
+                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] px-4 text-base text-[#1f141b] sm:text-sm"
               />
             </div>
             <button
               type="submit"
               disabled={authBusy}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white transition hover:bg-[var(--brand-accent)]"
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white transition hover:bg-[var(--brand-accent)] disabled:opacity-60"
             >
-              {authBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span>Enviar código de acceso</span>
+              {authBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              <span>Enviar enlace de acceso</span>
             </button>
           </form>
         ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div>
-              <label htmlFor="portal-otp" className="mb-1 block text-sm font-medium">
-                Código de 6 dígitos
-              </label>
-              <input
-                id="portal-otp"
-                name="otp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="\d{6}"
-                maxLength={6}
-                required
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="000000"
-                className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] px-4 text-center text-lg font-bold tracking-[0.25em]"
-              />
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-[#eedbe4] bg-[#fff9fc] p-4 text-sm text-[#4a3541]">
+              <p className="font-semibold text-[#1f141b]">Revisa tu correo electrónico</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#6c5763]">
+                Toca el botón de acceso directo que enviamos a{" "}
+                <strong className="text-[#1f141b]">{emailInput}</strong> para entrar en un clic.
+                Si no lo ves, revisa tu carpeta de Spam o Promociones.
+              </p>
             </div>
-            <button
-              type="submit"
-              disabled={authBusy}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white"
+
+            <form
+              aria-labelledby="portal-otp-heading"
+              onSubmit={handleVerifyOtp}
+              className="space-y-3 border-t border-[#f3e5ec] pt-4"
             >
-              {authBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span>Entrar a Mis Citas</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setOtpSent(false)}
-              className="w-full text-center text-xs font-semibold text-[#6c5763] underline"
-            >
-              Usar otro correo
-            </button>
-          </form>
+              <div>
+                <h2
+                  id="portal-otp-heading"
+                  className="text-xs font-semibold text-[#6c5763]"
+                >
+                  ¿Prefieres ingresar el código sin salir de esta pantalla?
+                </h2>
+                <label
+                  htmlFor="portal-otp"
+                  className="mt-2 mb-1 block text-sm font-medium text-[#1f141b]"
+                >
+                  Código de 6 dígitos
+                </label>
+                <input
+                  id="portal-otp"
+                  name="otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  enterKeyHint="done"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  required
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] px-4 text-center text-lg font-bold tracking-[0.25em] text-[#1f141b]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={authBusy}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white transition hover:bg-[var(--brand-accent)] disabled:opacity-60"
+              >
+                {authBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                <span>Entrar con código</span>
+              </button>
+              <div className="flex items-center justify-center gap-4 pt-1">
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={() => sendMagicLinkAndOtp(emailInput)}
+                  className="min-h-10 px-2 text-xs font-semibold text-[var(--brand-primary)] underline"
+                >
+                  Reenviar correo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLinkSent(false);
+                    setOtpCode("");
+                    setErrorMsg(null);
+                    setMessage(null);
+                  }}
+                  className="min-h-10 px-2 text-xs font-semibold text-[#6c5763] underline"
+                >
+                  Usar otro correo
+                </button>
+              </div>
+            </form>
+          </div>
         )}
       </section>
     );
   }
 
+  const hasCompleteProfile = Boolean(
+    savedProfile?.firstName?.trim() && savedProfile?.phone?.trim()
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[#f1dfe8] bg-white p-5">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-[#1f141b]">Mis Citas</h1>
+          <h1 className="font-serif text-3xl font-semibold text-[#1f141b]">
+            {savedProfile?.firstName ? `Hola, ${savedProfile.firstName}` : "Mi Cuenta"}
+          </h1>
           <p className="text-xs text-[#6c5763]">{userEmail}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/reservar"
-            className="inline-flex min-h-10 items-center rounded-full bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white transition hover:bg-[var(--brand-accent)]"
           >
-            Nueva reserva
+            <span>Nueva reserva</span>
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
           <button
             type="button"
             onClick={handleSignOut}
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-[#e7cddb] px-3.5 text-xs font-semibold text-[#4a3541]"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#e7cddb] px-3.5 text-xs font-semibold text-[#4a3541]"
           >
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
             Salir
           </button>
         </div>
@@ -341,62 +522,290 @@ export function ClientPortal({
         </div>
       )}
       {message && (
-        <div role="status" className="rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-          {message}
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-900 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{message}</span>
+          {hasCompleteProfile && appointments.length === 0 && (
+            <Link
+              href="/reservar"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-emerald-700 px-4 text-xs font-semibold text-white"
+            >
+              <span>Ir a reservar</span>
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          )}
         </div>
       )}
 
-      {appointments.length > 0 && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!birthDateInput) return;
-            setSavingBday(true);
-            setErrorMsg(null);
-            try {
-              const res = await updateClientBirthDateAction(birthDateInput);
-              if (!res.success) setErrorMsg(res.error);
-              else {
-                setMessage("¡Cumpleaños guardado! Te enviaremos un regalito en tu día.");
-                router.refresh();
-              }
-            } finally {
-              setSavingBday(false);
-            }
-          }}
-          className="flex flex-col gap-3 rounded-3xl border border-[#f1dfe8] bg-white p-4 sm:flex-row sm:items-end sm:justify-between"
+      {/* Tarjeta Mi Ficha (Onboarding WhatsApp + edición permanente) */}
+      {hasCompleteProfile && !editingProfile && savedProfile ? (
+        <section
+          aria-labelledby="client-profile-summary-heading"
+          className="rounded-3xl border border-[#eedbe4] bg-[#fff9fc] p-5 shadow-xs"
         >
-          <div className="flex-1">
-            <label htmlFor="my-bday" className="mb-1 block text-xs font-semibold text-[#1f141b]">
-              Mi fecha de cumpleaños (para regalitos de {bundle.business.name})
-            </label>
-            <input
-              id="my-bday"
-              type="date"
-              autoComplete="bday"
-              value={birthDateInput}
-              onChange={(e) => setBirthDateInput(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm sm:max-w-xs"
-            />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[var(--brand-primary)] shadow-2xs">
+                <UserCheck className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2
+                  id="client-profile-summary-heading"
+                  className="text-sm font-bold text-[#1f141b]"
+                >
+                  Mi ficha de clienta
+                </h2>
+                <p className="text-xs text-[#6c5763]">
+                  Tus datos se precargarán automáticamente al reservar.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingProfile(true);
+                setErrorMsg(null);
+              }}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-[#e3c7d6] bg-white px-3.5 text-xs font-semibold text-[#1f141b] transition hover:border-[var(--brand-primary)]"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Editar datos</span>
+            </button>
           </div>
-          <SaveButton
-            variant="secondary"
-            busy={savingBday}
-            disabled={!birthDateInput}
-            label="Guardar cumpleaños"
-            className="shrink-0"
-          />
-        </form>
+
+          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-[#7a6571]">Nombre completo</dt>
+              <dd className="font-medium text-[#1f141b]">
+                {savedProfile.firstName} {savedProfile.lastName}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[#7a6571]">WhatsApp</dt>
+              <dd className="font-medium text-[#1f141b]">
+                {formatPhoneDisplay(savedProfile.phone)}
+              </dd>
+            </div>
+            {savedProfile.instagramHandle && (
+              <div>
+                <dt className="text-xs text-[#7a6571]">Instagram</dt>
+                <dd className="font-medium text-[#1f141b]">@{savedProfile.instagramHandle}</dd>
+              </div>
+            )}
+            {savedProfile.birthDate && (
+              <div>
+                <dt className="text-xs text-[#7a6571]">Cumpleaños</dt>
+                <dd className="font-medium text-[#1f141b]">{savedProfile.birthDate}</dd>
+              </div>
+            )}
+          </dl>
+        </section>
+      ) : (
+        <section
+          aria-labelledby="client-profile-form-heading"
+          className="rounded-3xl border border-[#f1dfe8] bg-white p-5 shadow-xs sm:p-6"
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#fdf0f6] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{hasCompleteProfile ? "Actualizar ficha" : "Registro en 1 paso"}</span>
+              </div>
+              <h2
+                id="client-profile-form-heading"
+                className="mt-2 font-serif text-2xl font-semibold text-[#1f141b]"
+              >
+                {hasCompleteProfile
+                  ? "Edita tus datos"
+                  : `Completa tu ficha en ${bundle.business.name}`}
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-[#6c5763]">
+                {hasCompleteProfile
+                  ? "Mantén tu WhatsApp y cumpleaños al día para avisos y regalitos."
+                  : "Guarda tus datos una sola vez: así la próxima vez agendarás en segundos sin volver a escribirlos."}
+              </p>
+            </div>
+            {hasCompleteProfile && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingProfile(false);
+                  setErrorMsg(null);
+                }}
+                className="min-h-10 shrink-0 rounded-full border border-[#e7cddb] px-3.5 text-xs font-semibold text-[#4a3541]"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+
+          <form
+            aria-labelledby="client-profile-form-heading"
+            onSubmit={handleSaveProfile}
+            className="space-y-4"
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="portal-first-name"
+                  className="mb-1 block text-sm font-medium text-[#1f141b]"
+                >
+                  Nombre <span aria-hidden="true" className="text-red-600">*</span>
+                </label>
+                <input
+                  id="portal-first-name"
+                  name="firstName"
+                  type="text"
+                  required
+                  autoComplete="given-name"
+                  enterKeyHint="next"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  onBlur={() => setFirstName((v) => (v.trim() ? normalizePersonName(v) : ""))}
+                  placeholder="Ej. María José"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="portal-last-name"
+                  className="mb-1 block text-sm font-medium text-[#1f141b]"
+                >
+                  Apellidos <span aria-hidden="true" className="text-red-600">*</span>
+                </label>
+                <input
+                  id="portal-last-name"
+                  name="lastName"
+                  type="text"
+                  required
+                  autoComplete="family-name"
+                  enterKeyHint="next"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  onBlur={() => setLastName((v) => (v.trim() ? normalizePersonName(v) : ""))}
+                  placeholder="Ej. González Pérez"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="portal-phone"
+                  className="mb-1 block text-sm font-medium text-[#1f141b]"
+                >
+                  WhatsApp <span aria-hidden="true" className="text-red-600">*</span>
+                </label>
+                <input
+                  id="portal-phone"
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  required
+                  autoComplete="tel"
+                  enterKeyHint="next"
+                  value={phone}
+                  onFocus={() => {
+                    if (!phone.trim()) setPhone("+56 ");
+                  }}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onBlur={() => {
+                    const digits = phone.replace(/\D/g, "");
+                    if (!digits || digits === "56") {
+                      setPhone("");
+                      return;
+                    }
+                    setPhone(formatPhoneDisplay(phone));
+                  }}
+                  placeholder="+56 9 1234 5678"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="portal-ig"
+                  className="mb-1 block text-sm font-medium text-[#1f141b]"
+                >
+                  Instagram (opcional)
+                </label>
+                <input
+                  id="portal-ig"
+                  name="instagramHandle"
+                  type="text"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  enterKeyHint="next"
+                  value={instagramHandle}
+                  onFocus={() => {
+                    if (!instagramHandle.trim()) setInstagramHandle("@");
+                  }}
+                  onChange={(e) => {
+                    const cleaned = e.target.value
+                      .replace(/\s+/g, "")
+                      .toLowerCase()
+                      .replace(/^@+/, "@");
+                    setInstagramHandle(cleaned);
+                  }}
+                  onBlur={() => {
+                    const clean = normalizeInstagramHandle(instagramHandle);
+                    setInstagramHandle(clean ? `@${clean}` : "");
+                  }}
+                  placeholder="@tuusuario"
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:text-sm"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="portal-bday"
+                  className="mb-1 block text-sm font-medium text-[#1f141b]"
+                >
+                  Fecha de cumpleaños (opcional)
+                </label>
+                <input
+                  id="portal-bday"
+                  name="birthDate"
+                  type="date"
+                  autoComplete="bday"
+                  aria-describedby="portal-bday-hint"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] bg-white px-4 text-base text-[#1f141b] sm:max-w-xs sm:text-sm"
+                />
+                <p id="portal-bday-hint" className="mt-1 text-xs text-[#6c5763]">
+                  Para enviarte un regalito especial en tu día.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+              <SaveButton
+                busy={savingProfile}
+                label={hasCompleteProfile ? "Guardar cambios" : "Guardar mi ficha"}
+                className="w-full sm:w-auto"
+              />
+            </div>
+          </form>
+        </section>
       )}
 
       {appointments.length === 0 ? (
         <div className="rounded-3xl border border-[#f1dfe8] bg-white p-8 text-center">
-          <p className="text-sm text-[#6c5763]">Aún no tienes citas registradas con este correo.</p>
+          <p className="text-sm text-[#6c5763]">
+            {hasCompleteProfile
+              ? "Aún no tienes citas registradas. Tu ficha ya está lista para agendar en segundos."
+              : "Aún no tienes citas registradas con este correo."}
+          </p>
           <Link
             href="/reservar"
-            className="mt-4 inline-flex min-h-11 items-center rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white"
+            className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white transition hover:bg-[var(--brand-accent)]"
           >
-            Agendar mi primera hora
+            <span>Agendar mi primera hora</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
       ) : (

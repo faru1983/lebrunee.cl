@@ -6,9 +6,15 @@
 - **Repositorio GitHub:** `https://github.com/faru1983/lebrunee.cl`
 - **Producción:** `https://lebrunee.vercel.app`
 - **Supabase:** Proyecto `Lebrunee` (`fenbuqgveosoqcuvlrcv`, región `sa-east-1`). Migraciones aplicadas hasta `phase3_birthday_and_templates`.
-- **Pendiente de negocio:** Configurar Resend en `/admin/settings?tab=resend` cuando se cree la cuenta, crear el perfil de Valentina en `/admin/settings?tab=equipo` y conectar el dominio final `lebrunee.cl`.
+- **Integraciones:** Resend ya configurado.
+- **Pendiente de negocio:** Crear el perfil de Valentina en `/admin/settings?tab=equipo`, verificar si Resend también quedará como Custom SMTP en Supabase Auth, y conectar el dominio final `lebrunee.cl`.
 
 ## Últimos Cambios
+
+### 23-11-2026 — Onboarding previo en `/mi-cuenta` (Magic Link + Mi Ficha + invitación WhatsApp)
+- **Magic Link + código OTP de respaldo:** `/mi-cuenta` (`ClientPortal.tsx`) ahora envía enlace de acceso directo vía `emailRedirectTo` hacia `/auth/callback?next=/mi-cuenta` y mantiene el campo de código de 6 dígitos en la misma pantalla. `/auth/callback` (`app/auth/callback/route.ts`) vincula `auth_user_id` automáticamente y redirige a `/mi-cuenta?error=expired` si el enlace expira.
+- **Tarjeta completa "Mi Ficha":** Agregados `UpsertClientProfileSchema` (`lib/types.ts`), `upsertVerifiedClientProfile` (`lib/services/bookingService.ts`) y `upsertClientProfileAction` (`app/actions/bookingActions.ts`). Cualquier clienta (incluso con 0 citas) puede registrar/editar nombre, apellidos, WhatsApp, Instagram y cumpleaños en `/mi-cuenta` y luego reservar en `/reservar` con todo precargado.
+- **Invitación rápida para WhatsApp:** Agregados botones *"Copiar invitación WhatsApp"* y *"Solo enlace"* en `/admin/clients` (`AdminClientsClient.tsx`).
 
 ### 22-11-2026 — Orden y normalización del formulario Paso 3 en `/reservar`
 - **Alineación y orden:** En `BookingWizard.tsx`, `WhatsApp` e `Instagram` comparten fila y `Fecha de cumpleaños (opcional)` ubica su texto de ayuda debajo del `<input>`, eliminando la desalineación vertical.
@@ -26,16 +32,3 @@
 - **Formularios con Nombre + Apellidos + Cumpleaños opcional**: `/reservar`, modal manual en Admin, `/mi-cuenta` y detalle CRM `/admin/clients/[id]` solicitan `firstName`, `lastName` y `birth_date` (`Día + Mes + Año` con `autoComplete`).
 - **Separación limpia**: `/admin/settings?tab=resend` administra credenciales Resend y las 4 plantillas transaccionales de reserva; `/admin/comunicaciones` centraliza `?tab=citas`, `?tab=mantencion`, `?tab=cumpleanos` y `?tab=historial` + cron diario.
 - **Deep-linking de Admin por URL**: `?tab=` en `/admin/settings`, `/admin/comunicaciones`, `/admin/finanzas` (preservando `?month=`) y `?status=` en `/admin/agenda`.
-
-### 22-11-2026 — CRM, ERP Finanzas, Cierre de Citas y Recordatorio Configurable a XX Días
-- **Migración `phase2_crm_erp_retention`**: agregada tabla `client_retention_logs` con RLS, `clients.retention_opt_out`, settings `retention_rules` y `expense_categories`, y plantilla `retention_followup`.
-- **Gestión completa de citas (`AppointmentDetailModal.tsx`)**: reprogramación/notas desde Admin y cierre en mesa agregando extras, descuento automático de abono y registro de saldo en `payments`.
-- **CRM (`/admin/clients` y `/admin/clients/[id]`)**: directorio buscable con filtro de mantención, historial y ficha técnica de uñas (`client_notes`).
-- **Finanzas (`/admin/finanzas`)**: balance mensual (ingresos, gastos, utilidad neta, saldos por cobrar), desglose por medio de pago/servicio, ventas rápidas y CRUD móvil de gastos.
-- **Comunicaciones (`/admin/comunicaciones` + `/api/cron/reminders`)**: regla configurable tras `XX` días sin visita (WhatsApp 1 toque + envío automático por Resend respetando cuota diaria) y cambio de contraseña en `/admin/settings`.
-
-### 22-11-2026 — Inicialización Integral (Etapas 1 a 4)
-- Creada estructura Next.js 16 + Tailwind CSS v4 + TypeScript + PWA.
-- Creadas migraciones iniciales en Supabase (`initial_schema`, `seed_lebrunee_initial`, `fix_seed_image_urls`, `add_covering_indexes`) con `business_id`, RLS y datos iniciales editables de Lebrunee.
-- Documentación base creada (`AGENTS.md`, `.agents/rules/rules.md`, `README.md`, `CHANGELOG.md`, `docs/*`, `docs/adr/*`).
-- Blindado `businessService.ts` y `app/manifest.ts` (`force-dynamic`) para evitar errores de prerendering en `next build` cuando las variables de entorno aún no están cargadas en Vercel.

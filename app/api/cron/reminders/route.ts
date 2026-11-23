@@ -114,7 +114,7 @@ async function handle(request: Request) {
   const allClients = needsClientList
     ? await getAdminClientsList(bundle.business.id, bundle.business.timezone)
     : [];
-  const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
+  const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.cl"}/reservar`;
 
   if (bundle.retentionRules.retentionEnabled) {
     const dueClients = filterRetentionCandidates(allClients, bundle.retentionRules);

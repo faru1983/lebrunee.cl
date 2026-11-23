@@ -10,12 +10,17 @@ import {
   createSupabaseServerClient,
   hasValidServiceRoleKey,
 } from "@/lib/supabase/server";
-import type { AppointmentRecord } from "@/lib/types";
+import type { AppointmentRecord, VerifiedClientProfile } from "@/lib/types";
 import { normalizeEmail } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function MiCuentaPage() {
+export default async function MiCuentaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
   const bundle = await getActiveBusinessBundle();
   const supabase = await createSupabaseServerClient();
   const {
@@ -25,7 +30,7 @@ export default async function MiCuentaPage() {
   let appointments: AppointmentRecord[] = [];
   let exactAddress: string | null = null;
   let addressNotes: string | null = null;
-  let clientBirthDate: string | null = null;
+  let clientProfile: VerifiedClientProfile | null = null;
 
   if (user?.email && hasValidServiceRoleKey()) {
     const admin = createSupabaseAdminClient();
@@ -41,13 +46,23 @@ export default async function MiCuentaPage() {
 
     const { data: client } = await admin
       .from("clients")
-      .select("id, birth_date")
+      .select(
+        "id, first_name, last_name, email, phone, birth_date, instagram_handle, is_new_client"
+      )
       .eq("business_id", bundle.business.id)
       .or(`auth_user_id.eq.${user.id},email.eq.${cleanEmail}`)
       .maybeSingle();
 
     if (client) {
-      clientBirthDate = client.birth_date || null;
+      clientProfile = {
+        firstName: client.first_name || "",
+        lastName: client.last_name || "",
+        email: cleanEmail,
+        phone: client.phone || "",
+        birthDate: client.birth_date || "",
+        instagramHandle: client.instagram_handle || "",
+        isNewClient: Boolean(client.is_new_client),
+      };
       const { data: appts } = await admin
         .from("appointments")
         .select("*, staff:staff_members(id, name), items:appointment_items(*)")
@@ -78,8 +93,9 @@ export default async function MiCuentaPage() {
       <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
         <ClientPortal
           bundle={bundle}
-          userEmail={user?.email || null}
-          clientBirthDate={clientBirthDate}
+          userEmail={user?.email ? normalizeEmail(user.email) : null}
+          initialProfile={clientProfile}
+          authError={params.error || null}
           appointments={appointments}
           exactAddress={exactAddress}
           addressNotes={addressNotes}

@@ -11,11 +11,13 @@ import {
   createBookingCore,
   getVerifiedClientProfile,
   rescheduleClientAppointmentCore,
+  upsertVerifiedClientProfile,
 } from "@/lib/services/bookingService";
 import { sendBusinessEmail } from "@/lib/services/emailService";
 import {
   CreatePublicBookingSchema,
   RescheduleAppointmentSchema,
+  UpsertClientProfileSchema,
 } from "@/lib/types";
 import { formatDateLongEs, hoursUntilAppointment, normalizeEmail } from "@/lib/utils";
 
@@ -159,6 +161,54 @@ export async function linkClientSessionAction() {
     .is("auth_user_id", null);
 
   return { ok: true };
+}
+
+export async function upsertClientProfileAction(rawInput: unknown) {
+  try {
+    if (!hasValidServiceRoleKey()) {
+      return {
+        success: false as const,
+        error: "Falta configurar el servidor para guardar tu ficha.",
+      };
+    }
+    const parsed = UpsertClientProfileSchema.safeParse(rawInput);
+    if (!parsed.success) {
+      return {
+        success: false as const,
+        error: parsed.error.issues[0]?.message || "Revisa los datos ingresados.",
+      };
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.email) {
+      return {
+        success: false as const,
+        error: "Debes iniciar sesión para guardar tu ficha.",
+      };
+    }
+
+    const bundle = await getActiveBusinessBundle();
+    const profile = await upsertVerifiedClientProfile({
+      businessId: bundle.business.id,
+      authUserId: user.id,
+      email: user.email,
+      input: parsed.data,
+    });
+
+    revalidatePath("/mi-cuenta");
+    revalidatePath("/reservar");
+    revalidatePath("/admin/clients");
+
+    return { success: true as const, profile };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "No pudimos guardar tu ficha.",
+    };
+  }
 }
 
 export async function updateClientBirthDateAction(birthDate: string) {

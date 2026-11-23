@@ -11,6 +11,7 @@ import type {
   AppointmentRecord,
   CreateAdminAppointmentSchema,
   CreatePublicBookingSchema,
+  UpsertClientProfileSchema,
   VerifiedClientProfile,
 } from "@/lib/types";
 import {
@@ -71,6 +72,80 @@ export async function getVerifiedClientProfile(params: {
     birthDate: client.birth_date || "",
     instagramHandle: client.instagram_handle || "",
     isNewClient: false,
+  };
+}
+
+/**
+ * Crea o actualiza la ficha de una clienta autenticada desde /mi-cuenta.
+ */
+export async function upsertVerifiedClientProfile(params: {
+  businessId: string;
+  authUserId: string;
+  email: string;
+  input: z.infer<typeof UpsertClientProfileSchema>;
+}): Promise<VerifiedClientProfile> {
+  const admin = createSupabaseAdminClient();
+  const cleanEmail = normalizeEmail(params.email);
+  const phone = normalizePhone(params.input.phone);
+  if (!isValidPhone(phone)) {
+    throw new Error("Ingresa un número de WhatsApp válido (ej. +56 9 1234 5678).");
+  }
+
+  const firstName = normalizePersonName(params.input.firstName);
+  const lastName = normalizePersonName(params.input.lastName);
+  const birthDate = params.input.birthDate?.trim() || null;
+  const cleanIg = normalizeInstagramHandle(params.input.instagramHandle || "") || null;
+
+  const { data: existingClient } = await admin
+    .from("clients")
+    .select("id")
+    .eq("business_id", params.businessId)
+    .or(`auth_user_id.eq.${params.authUserId},email.eq.${cleanEmail}`)
+    .maybeSingle();
+
+  if (existingClient) {
+    const { error } = await admin
+      .from("clients")
+      .update({
+        first_name: firstName,
+        last_name: lastName || null,
+        phone,
+        instagram_handle: cleanIg,
+        birth_date: birthDate,
+        auth_user_id: params.authUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingClient.id);
+
+    if (error) {
+      throw new Error("No pudimos actualizar tu ficha. Intenta nuevamente.");
+    }
+  } else {
+    const { error } = await admin.from("clients").insert({
+      business_id: params.businessId,
+      auth_user_id: params.authUserId,
+      first_name: firstName,
+      last_name: lastName || null,
+      email: cleanEmail,
+      phone,
+      instagram_handle: cleanIg,
+      birth_date: birthDate,
+      is_new_client: true,
+    });
+
+    if (error) {
+      throw new Error("No pudimos crear tu ficha. Intenta nuevamente.");
+    }
+  }
+
+  return {
+    firstName,
+    lastName,
+    email: cleanEmail,
+    phone,
+    birthDate: birthDate || "",
+    instagramHandle: cleanIg || "",
+    isNewClient: !existingClient,
   };
 }
 

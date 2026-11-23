@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, MessageCircle, Search, Sparkles } from "lucide-react";
+import { Check, ChevronRight, Copy, Link2, MessageCircle, Search, Sparkles } from "lucide-react";
 import { logRetentionWhatsappAction } from "@/app/actions/crmFinanceActions";
 import type { ClientSummaryRecord, RetentionRulesSettings } from "@/lib/types";
 import {
@@ -25,6 +25,51 @@ export function AdminClientsClient({
 }: AdminClientsClientProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "frequent" | "retention">("all");
+  const [copiedKind, setCopiedKind] = useState<"invite" | "link" | null>(null);
+  const [copyStatusText, setCopyStatusText] = useState("");
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastStatusRef = useRef("");
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  async function handleCopyOnboarding(kind: "invite" | "link") {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const registerUrl = `${origin}/mi-cuenta`;
+    const payload =
+      kind === "invite"
+        ? `¡Hola! 💕 En ${businessName} estrenamos nuestra ficha digital de clientas. Registra tus datos en 15 segundos aquí para agendar más rápido sin volver a llenar formularios (y recibir un regalito en tu cumpleaños 🎂):\n${registerUrl}`
+        : registerUrl;
+
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+
+    let feedback = "";
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopiedKind(kind);
+      feedback =
+        kind === "invite"
+          ? "Invitación copiada para WhatsApp"
+          : "Enlace de registro copiado";
+    } catch {
+      setCopiedKind(null);
+      feedback = "No se pudo copiar al portapapeles";
+    }
+
+    if (feedback === lastStatusRef.current) {
+      feedback += "\u00A0";
+    }
+    lastStatusRef.current = feedback;
+    setCopyStatusText(feedback);
+
+    copyTimerRef.current = setTimeout(() => {
+      setCopiedKind(null);
+      setCopyStatusText("");
+    }, 2500);
+  }
 
   const minDays = retentionRules.daysSinceLastVisit || 21;
 
@@ -66,12 +111,48 @@ export function AdminClientsClient({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-serif text-3xl font-semibold text-[#1f141b]">Clientas</h1>
           <p className="text-xs text-[#6c5763]">
             {clients.length} registradas · Ficha técnica de uñas e historial
           </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleCopyOnboarding("invite")}
+            data-copied={copiedKind === "invite" ? "" : undefined}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-emerald-600 px-4 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700"
+          >
+            {copiedKind === "invite" ? (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            <span>Copiar invitación WhatsApp</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleCopyOnboarding("link")}
+            data-copied={copiedKind === "link" ? "" : undefined}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#e2cbd7] bg-white px-3.5 text-xs font-semibold text-[#4a3541] transition hover:border-[var(--brand-primary)]"
+          >
+            {copiedKind === "link" ? (
+              <Check className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+            ) : (
+              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            <span>Solo enlace</span>
+          </button>
+          <span
+            role="status"
+            className={`text-xs font-medium text-emerald-800 transition-opacity ${
+              copyStatusText ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            {copyStatusText}
+          </span>
         </div>
       </div>
 

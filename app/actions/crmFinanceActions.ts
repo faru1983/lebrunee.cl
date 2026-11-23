@@ -457,7 +457,7 @@ export async function sendRetentionEmailBatchAction() {
     }
 
     const admin = createSupabaseAdminClient();
-    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
+    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.cl"}/reservar`;
     let sent = 0;
     let skipped = 0;
 
@@ -622,7 +622,7 @@ export async function sendBirthdayEmailBatchAction() {
     }
 
     const admin = createSupabaseAdminClient();
-    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.vercel.app"}/reservar`;
+    const bookingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.cl"}/reservar`;
     let sent = 0;
     let skipped = 0;
 
