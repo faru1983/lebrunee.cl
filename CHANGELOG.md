@@ -30,4 +30,5 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Landing editorial dinámica, motor de agenda configurable (`/reservar`), portal de clientas (`/mi-cuenta`) y panel administrativo mobile-first (`/admin`).
 
 ### Fixed
+- Campos de código OTP en `/mi-cuenta` (`ClientPortal.tsx`) y `/reservar` (`BookingWizard.tsx`) ahora aceptan entre 6 y 10 dígitos (`minLength={6}`, `maxLength={10}`, `pattern="\d{6,10}"`) para evitar que códigos de 8 dígitos enviados por Supabase Auth se trunquen y fallen con `otp_expired`.
 - `lib/services/businessService.ts` y `app/manifest.ts` ahora hacen fallback seguro en build-time si faltan variables públicas de Supabase durante la importación inicial en Vercel.

@@ -192,7 +192,7 @@ export function ClientPortal({
     setErrorMsg(null);
     setMessage(null);
     if (otpCode.trim().length < 6) {
-      setErrorMsg("Ingresa el código de 6 dígitos que llegó a tu correo.");
+      setErrorMsg("Ingresa el código de verificación que llegó a tu correo.");
       return;
     }
     setAuthBusy(true);
@@ -426,7 +426,7 @@ export function ClientPortal({
                   htmlFor="portal-otp"
                   className="mt-2 mb-1 block text-sm font-medium text-[#1f141b]"
                 >
-                  Código de 6 dígitos
+                  Código de verificación
                 </label>
                 <input
                   id="portal-otp"
@@ -438,12 +438,13 @@ export function ClientPortal({
                   autoCapitalize="none"
                   spellCheck={false}
                   enterKeyHint="done"
-                  pattern="\d{6}"
-                  maxLength={6}
+                  pattern="\d{6,10}"
+                  minLength={6}
+                  maxLength={10}
                   required
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
+                  placeholder="Ingresa el código"
                   className="min-h-12 w-full rounded-2xl border border-[#e2cbd7] px-4 text-center text-lg font-bold tracking-[0.25em] text-[#1f141b]"
                 />
               </div>

@@ -248,7 +248,7 @@ export function BookingWizard({
 
     const cleanEmail = normalizeEmail(email);
     if (otpCode.trim().length < 6) {
-      setErrorMsg("Ingresa el código de 6 dígitos que enviamos a tu correo.");
+      setErrorMsg("Ingresa el código de verificación que enviamos a tu correo.");
       return;
     }
 
@@ -774,7 +774,7 @@ export function BookingWizard({
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
               <p className="text-xs leading-relaxed text-[#4b3843] sm:text-sm">
                 <strong className="text-[#1f141b]">Sin contraseña:</strong> te enviaremos un código
-                de 6 dígitos. Si ya reservaste antes con nosotros,{" "}
+                de verificación. Si ya reservaste antes con nosotros,{" "}
                 <strong>cargaremos tu ficha automáticamente</strong>.
               </p>
             </div>
@@ -824,7 +824,7 @@ export function BookingWizard({
             <div className="space-y-4">
               <div>
                 <label htmlFor="otp-code" className="mb-1 block text-xs font-semibold text-[#1f141b]">
-                  Código de 6 dígitos enviado a {normalizeEmail(email)}
+                  Código enviado a {normalizeEmail(email)}
                 </label>
                 <div className="flex flex-wrap items-center gap-3">
                   <input
@@ -833,13 +833,14 @@ export function BookingWizard({
                     type="text"
                     inputMode="numeric"
                     autoComplete="one-time-code"
-                    pattern="\d{6}"
-                    maxLength={6}
+                    pattern="\d{6,10}"
+                    minLength={6}
+                    maxLength={10}
                     required
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="000000"
-                    className="min-h-12 w-44 rounded-2xl border border-[#d6b3c5] bg-white px-4 text-center text-lg font-bold tracking-[0.25em] text-[#1f141b]"
+                    placeholder="Código"
+                    className="min-h-12 w-48 rounded-2xl border border-[#d6b3c5] bg-white px-4 text-center text-lg font-bold tracking-[0.25em] text-[#1f141b]"
                   />
                   <button
                     type="button"

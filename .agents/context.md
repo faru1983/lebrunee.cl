@@ -11,6 +11,9 @@
 
 ## Últimos Cambios
 
+### 24-11-2026 — Corrección de longitud OTP en `/mi-cuenta` y `/reservar`
+- **Desajuste 8 vs 6 dígitos:** Supabase Auth estaba enviando códigos OTP de 8 dígitos mientras `ClientPortal.tsx` y `BookingWizard.tsx` tenían `maxLength={6}` y `pattern="\d{6}"`, truncando el código y causando `403 otp_expired`. Se actualizaron ambos inputs a `minLength={6}`, `maxLength={10}` y `pattern="\d{6,10}"` con etiquetas genéricas para soportar tanto 6 como 8 dígitos sin truncamiento.
+
 ### 23-11-2026 — Onboarding previo en `/mi-cuenta` (Magic Link + Mi Ficha + invitación WhatsApp)
 - **Magic Link + código OTP de respaldo:** `/mi-cuenta` (`ClientPortal.tsx`) ahora envía enlace de acceso directo vía `emailRedirectTo` hacia `/auth/callback?next=/mi-cuenta` y mantiene el campo de código de 6 dígitos en la misma pantalla. `/auth/callback` (`app/auth/callback/route.ts`) vincula `auth_user_id` automáticamente y redirige a `/mi-cuenta?error=expired` si el enlace expira.
 - **Tarjeta completa "Mi Ficha":** Agregados `UpsertClientProfileSchema` (`lib/types.ts`), `upsertVerifiedClientProfile` (`lib/services/bookingService.ts`) y `upsertClientProfileAction` (`app/actions/bookingActions.ts`). Cualquier clienta (incluso con 0 citas) puede registrar/editar nombre, apellidos, WhatsApp, Instagram y cumpleaños en `/mi-cuenta` y luego reservar en `/reservar` con todo precargado.
@@ -26,9 +29,3 @@
 
 ### 22-11-2026 — Recuperación de contraseña en Admin
 - **Login & Callback Auth:** Agregada opción *"¿Olvidaste tu contraseña?"* en `/admin/login` (`AdminLoginForm.tsx`), ruta `/auth/callback` (`app/auth/callback/route.ts`) para `exchangeCodeForSession`/`verifyOtp`, y pantalla `/admin/reset-password` (`AdminResetPasswordForm.tsx`) habilitada en `proxy.ts` y `app/admin/layout.tsx`.
-
-### 22-11-2026 — Cumpleaños, Nombre/Apellido separado, URL Tabs y Orden Ajustes/Comunicaciones
-- **Migración `phase3_birthday_and_templates`**: agregada columna `clients.birth_date` (`DATE`), tabla `client_birthday_logs` con restricción anual por canal (`UNIQUE (business_id, client_id, birthday_year, channel)`) + RLS, regla `birthday_rules` en `business_settings` y plantilla `birthday_gift`.
-- **Formularios con Nombre + Apellidos + Cumpleaños opcional**: `/reservar`, modal manual en Admin, `/mi-cuenta` y detalle CRM `/admin/clients/[id]` solicitan `firstName`, `lastName` y `birth_date` (`Día + Mes + Año` con `autoComplete`).
-- **Separación limpia**: `/admin/settings?tab=resend` administra credenciales Resend y las 4 plantillas transaccionales de reserva; `/admin/comunicaciones` centraliza `?tab=citas`, `?tab=mantencion`, `?tab=cumpleanos` y `?tab=historial` + cron diario.
-- **Deep-linking de Admin por URL**: `?tab=` en `/admin/settings`, `/admin/comunicaciones`, `/admin/finanzas` (preservando `?month=`) y `?status=` en `/admin/agenda`.
