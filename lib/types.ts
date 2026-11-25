@@ -98,6 +98,7 @@ export interface NotificationSettings {
   secondReminderHoursBefore: number;
   dailyEmailLimit: number;
   transactionalReserve: number;
+  notifyNewClientSignup: boolean;
 }
 
 export interface RetentionRulesSettings {

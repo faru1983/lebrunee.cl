@@ -29,7 +29,7 @@ import type {
   EmailTemplateRecord,
   RetentionRulesSettings,
 } from "@/lib/types";
-import { buildWhatsAppUrl, resolveTemplate } from "@/lib/utils";
+import { buildWhatsAppUrl, formatDateDdMmYyyy, resolveTemplate } from "@/lib/utils";
 
 export type CommsTabKey = "citas" | "mantencion" | "cumpleanos" | "historial";
 
@@ -53,10 +53,7 @@ function makeDraft(tpl: EmailTemplateRecord | null): TemplateDraft | null {
 }
 
 function formatBirthDateCl(iso: string | null): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
+  return formatDateDdMmYyyy(iso);
 }
 
 function TemplateEditorFields({

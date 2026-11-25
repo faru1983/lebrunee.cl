@@ -103,6 +103,12 @@ export function AdminSettingsClient({
   const [resendFromName, setResendFromName] = useState(resendView.fromName);
   const [resendReplyTo, setResendReplyTo] = useState(resendView.replyTo);
   const [testEmailTo, setTestEmailTo] = useState(bundle.contactPublic.adminNotificationEmail);
+  const [notifyNewClientSignup, setNotifyNewClientSignup] = useState(
+    bundle.notifications.notifyNewClientSignup ?? true
+  );
+  const [adminNotifyEmail, setAdminNotifyEmail] = useState(
+    bundle.contactPublic.adminNotificationEmail || resendView.replyTo || ""
+  );
   const [templateEdits, setTemplateEdits] = useState(templates);
 
   // 5. Team & Change Own Password
@@ -228,6 +234,43 @@ export function AdminSettingsClient({
       else notifyOk(res.message, "test-email");
     } finally {
       setTestingEmail(false);
+    }
+  }
+
+  async function saveInternalNotifications(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setSavingKey("internal-notifications");
+    setErrorMsg(null);
+    try {
+      const cleanAdminEmail = adminNotifyEmail.trim().toLowerCase();
+      const updatedContact = {
+        ...contactPublic,
+        adminNotificationEmail: cleanAdminEmail,
+      };
+      const [r1, r2] = await Promise.all([
+        saveSettingsSectionAction({
+          category: "notifications",
+          key: "notifications",
+          value: {
+            ...bundle.notifications,
+            notifyNewClientSignup,
+          },
+        }),
+        saveSettingsSectionAction({
+          category: "landing",
+          key: "contact_public",
+          value: updatedContact as unknown as Record<string, unknown>,
+        }),
+      ]);
+      if (!r1.success) return setErrorMsg(r1.error);
+      if (!r2.success) return setErrorMsg(r2.error);
+      setContactPublic(updatedContact);
+      setAdminNotifyEmail(cleanAdminEmail);
+      notifyOk("Notificación interna de nueva clienta guardada.", "internal-notifications");
+    } finally {
+      setBusy(false);
+      setSavingKey(null);
     }
   }
 
@@ -953,6 +996,63 @@ export function AdminSettingsClient({
                 </div>
               ))}
           </div>
+
+          <form
+            onSubmit={saveInternalNotifications}
+            className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5"
+          >
+            <div>
+              <h2 className="text-base font-bold text-[#1f141b]">
+                Notificaciones al salón
+              </h2>
+              <p className="text-xs text-[#6c5763]">
+                Aplica únicamente cuando una clienta nueva crea su ficha desde{" "}
+                <code>/mi-cuenta</code> (no se envía si agenda directo en{" "}
+                <code>/reservar</code>).
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-2xl border border-[#f2e4eb] bg-[#fdfafc] p-3.5 text-sm">
+              <input
+                type="checkbox"
+                checked={notifyNewClientSignup}
+                onChange={(e) => setNotifyNewClientSignup(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+              />
+              <span>
+                <strong className="block text-[#1f141b]">
+                  Avisar por correo cuando se registre una nueva clienta
+                </strong>
+                <span className="text-xs text-[#6c5763]">
+                  Envía un correo con su nombre, WhatsApp, Instagram y cumpleaños al completar Mi Ficha por primera vez.
+                </span>
+              </span>
+            </label>
+
+            <div>
+              <label
+                htmlFor="admin-notify-email"
+                className="mb-1 block text-xs font-semibold text-[#1f141b]"
+              >
+                Correo del salón que recibe el aviso
+              </label>
+              <input
+                id="admin-notify-email"
+                type="email"
+                value={adminNotifyEmail}
+                onChange={(e) => setAdminNotifyEmail(e.target.value)}
+                placeholder="salon@lebrunee.cl"
+                className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-base sm:text-sm"
+              />
+            </div>
+
+            <SaveButton
+              busy={savingKey === "internal-notifications"}
+              saved={lastSavedKey === "internal-notifications"}
+              disabled={busy}
+              label="Guardar notificación"
+            />
+          </form>
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[#eedbe4] bg-[#fdf9fb] p-5">
             <div>

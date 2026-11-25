@@ -17,6 +17,7 @@ import type {
 import {
   buildWhatsAppUrl,
   formatClp,
+  formatDateDdMmYyyy,
   formatDateLongEs,
   hoursUntilAppointment,
   minutesToTime,
@@ -135,6 +136,43 @@ export async function upsertVerifiedClientProfile(params: {
 
     if (error) {
       throw new Error("No pudimos crear tu ficha. Intenta nuevamente.");
+    }
+
+    try {
+      const bundle = await getActiveBusinessBundle();
+      if (bundle.notifications.notifyNewClientSignup) {
+        const recipient = bundle.contactPublic.adminNotificationEmail?.trim();
+        if (recipient) {
+          const fullName = [firstName, lastName].filter(Boolean).join(" ");
+          await sendBusinessEmail({
+            businessId: params.businessId,
+            to: recipient,
+            templateKey: "admin_new_client_signup",
+            category: "transactional",
+            variables: {
+              nombre: fullName,
+              correo: cleanEmail,
+              telefono: phone,
+              instagram: cleanIg ? `@${cleanIg}` : "No indicado",
+              cumpleanos: birthDate ? formatDateDdMmYyyy(birthDate) : "No indicado",
+            },
+            fallbackTemplate: {
+              subject: "Nueva clienta registrada en {{negocio}}: {{nombre}}",
+              heading: "Nueva clienta en Mi Cuenta",
+              bodyText:
+                "Se registró una nueva ficha desde /mi-cuenta (sin reserva aún):\n\n" +
+                "Nombre: {{nombre}}\n" +
+                "Correo: {{correo}}\n" +
+                "WhatsApp: {{telefono}}\n" +
+                "Instagram: {{instagram}}\n" +
+                "Cumpleaños: {{cumpleanos}}\n\n" +
+                "Puedes revisar su ficha en el panel de Clientas.",
+            },
+          });
+        }
+      }
+    } catch {
+      // No bloquea el registro de la ficha si falla o no está configurado Resend
     }
   }
 

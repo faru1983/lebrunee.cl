@@ -24,6 +24,12 @@ export function PwaInstallPrompt({ businessName }: { businessName: string }) {
     if (alreadyDismissed || isStandalone) return;
 
     const ua = window.navigator.userAgent;
+    const isMobileUa =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const isMobile = isMobileUa || (isCoarsePointer && window.innerWidth < 768);
+    if (!isMobile) return;
+
     const isIos = /iPhone|iPad|iPod/i.test(ua) && /Safari/i.test(ua) && !/CriOS/i.test(ua);
     const isAdminOrAccount =
       window.location.pathname.startsWith("/admin") ||
@@ -62,7 +68,7 @@ export function PwaInstallPrompt({ businessName }: { businessName: string }) {
   return (
     <aside
       aria-label="Instalar aplicación"
-      className="fixed inset-x-3 bottom-20 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#f1dfe8] bg-white/95 p-3.5 shadow-xl backdrop-blur-md md:bottom-5"
+      className="fixed inset-x-3 bottom-20 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#f1dfe8] bg-white/95 p-3.5 shadow-xl backdrop-blur-md md:hidden"
     >
       <img
         src="/images/icon-192.png"

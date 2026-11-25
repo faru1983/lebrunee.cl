@@ -36,6 +36,7 @@ import type {
 import {
   buildWhatsAppUrl,
   formatClp,
+  formatDateDdMmYyyy,
   formatDateLongEs,
   formatDateShortEs,
   normalizeEmail,
@@ -965,7 +966,9 @@ export function BookingWizard({
                 {birthDate && (
                   <div>
                     <dt className="text-xs text-[#7a6571]">Cumpleaños</dt>
-                    <dd className="font-medium text-[#1f141b]">{birthDate}</dd>
+                    <dd className="font-medium text-[#1f141b]">
+                      {formatDateDdMmYyyy(birthDate)}
+                    </dd>
                   </div>
                 )}
                 {normalizeInstagramHandle(instagramHandle) && (

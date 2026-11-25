@@ -11,7 +11,8 @@
 
 ## Últimos Cambios
 
-### 24-11-2026 — Corrección de longitud OTP en `/mi-cuenta` y `/reservar`
+### 24-11-2026 — Corrección de longitud OTP y notificación configurable de nueva clienta
+- **Notificación de nueva clienta en `/mi-cuenta`:** Agregado `notifyNewClientSignup` a `NotificationSettings` (`lib/types.ts`, `businessService.ts`). Cuando una clienta nueva crea su ficha por primera vez en `upsertVerifiedClientProfile` (`lib/services/bookingService.ts`), se envía un correo interno al `adminNotificationEmail` vía `sendBusinessEmail` (`templateKey: "admin_new_client_signup"` con `fallbackTemplate` en `emailService.ts`). No se dispara si la clienta agenda directo en `/reservar` ni al editar una ficha existente. Configurable desde `/admin/settings?tab=resend` (`AdminSettingsClient.tsx`).
 - **Desajuste 8 vs 6 dígitos:** Supabase Auth estaba enviando códigos OTP de 8 dígitos mientras `ClientPortal.tsx` y `BookingWizard.tsx` tenían `maxLength={6}` y `pattern="\d{6}"`, truncando el código y causando `403 otp_expired`. Se actualizaron ambos inputs a `minLength={6}`, `maxLength={10}` y `pattern="\d{6,10}"` con etiquetas genéricas para soportar tanto 6 como 8 dígitos sin truncamiento.
 
 ### 23-11-2026 — Onboarding previo en `/mi-cuenta` (Magic Link + Mi Ficha + invitación WhatsApp)

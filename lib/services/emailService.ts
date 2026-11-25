@@ -94,6 +94,11 @@ export async function sendBusinessEmail(params: {
   variables: Record<string, string | number>;
   category?: "transactional" | "reminder" | "campaign";
   appointmentId?: string;
+  fallbackTemplate?: {
+    subject: string;
+    heading: string;
+    bodyText: string;
+  };
 }): Promise<{ status: "sent" | "skipped" | "failed"; reason?: string }> {
   if (!hasValidServiceRoleKey()) {
     return { status: "skipped", reason: "service_role no configurado" };
@@ -161,11 +166,19 @@ export async function sendBusinessEmail(params: {
   };
 
   const subject = resolveTemplate(
-    tpl?.subject || `Actualización de tu cita en ${bundle.business.name}`,
+    tpl?.subject ||
+      params.fallbackTemplate?.subject ||
+      `Actualización de tu cita en ${bundle.business.name}`,
     vars
   );
-  const heading = resolveTemplate(tpl?.heading || bundle.business.name, vars);
-  const bodyText = resolveTemplate(tpl?.body_text || "", vars);
+  const heading = resolveTemplate(
+    tpl?.heading || params.fallbackTemplate?.heading || bundle.business.name,
+    vars
+  );
+  const bodyText = resolveTemplate(
+    tpl?.body_text || params.fallbackTemplate?.bodyText || "",
+    vars
+  );
 
   try {
     const apiKey = decryptSecret(integration.encrypted_secret);

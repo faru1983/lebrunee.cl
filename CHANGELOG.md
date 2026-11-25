@@ -5,6 +5,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Unreleased]
 
 ### Added
+- Notificación interna configurable por correo al salón cuando una clienta nueva registra su ficha por primera vez desde `/mi-cuenta` (`upsertVerifiedClientProfile`, `notifyNewClientSignup` en `business_settings`, configurable en `/admin/settings?tab=resend`). No se envía cuando la clienta agenda directamente en `/reservar`.
 - Onboarding previo en `/mi-cuenta`: acceso con **Magic Link** (1 clic vía `/auth/callback?next=/mi-cuenta`) + código OTP de 6 dígitos de respaldo, y tarjeta completa **"Mi Ficha"** (`upsertClientProfileAction`) para registrar/editar nombre, apellidos, WhatsApp, Instagram y cumpleaños incluso antes de la primera reserva.
 - Botones **"Copiar invitación WhatsApp"** y **"Solo enlace"** en `/admin/clients` para difundir el link de registro previo de clientas.
 - Flujo de recuperación de contraseña en Admin: opción **"¿Olvidaste tu contraseña?"** en `/admin/login` (`resetPasswordForEmail`), ruta de intercambio de sesión `/auth/callback` y pantalla `/admin/reset-password` para definir nueva clave.

@@ -90,6 +90,13 @@ export function formatDateShortEs(isoDate: string): string {
   }).format(dt);
 }
 
+export function formatDateDdMmYyyy(isoDate: string | null | undefined): string {
+  if (!isoDate) return "";
+  const [y, m, d] = isoDate.trim().split("-");
+  if (!y || !m || !d) return isoDate;
+  return `${d}-${m}-${y}`;
+}
+
 export function normalizePersonName(name: string): string {
   return name
     .trim()

@@ -38,6 +38,7 @@ import type {
 import {
   buildWhatsAppUrl,
   formatClp,
+  formatDateDdMmYyyy,
   formatDateLongEs,
   formatDateShortEs,
   hoursUntilAppointment,
@@ -598,7 +599,9 @@ export function ClientPortal({
             {savedProfile.birthDate && (
               <div>
                 <dt className="text-xs text-[#7a6571]">Cumpleaños</dt>
-                <dd className="font-medium text-[#1f141b]">{savedProfile.birthDate}</dd>
+                <dd className="font-medium text-[#1f141b]">
+                  {formatDateDdMmYyyy(savedProfile.birthDate)}
+                </dd>
               </div>
             )}
           </dl>
