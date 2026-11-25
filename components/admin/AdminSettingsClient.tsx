@@ -5,12 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
+  Bell,
   Building2,
+  CheckCircle2,
+  ChevronDown,
   CreditCard,
   Loader2,
   Mail,
   MapPin,
   Send,
+  Settings2,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -102,7 +106,12 @@ export function AdminSettingsClient({
   const [resendFromEmail, setResendFromEmail] = useState(resendView.fromEmail);
   const [resendFromName, setResendFromName] = useState(resendView.fromName);
   const [resendReplyTo, setResendReplyTo] = useState(resendView.replyTo);
-  const [testEmailTo, setTestEmailTo] = useState(bundle.contactPublic.adminNotificationEmail);
+  const [testEmailTo, setTestEmailTo] = useState(
+    bundle.contactPublic.adminNotificationEmail || resendView.replyTo || ""
+  );
+  const [notifyNewBooking, setNotifyNewBooking] = useState(
+    bundle.notifications.notifyNewBooking ?? true
+  );
   const [notifyNewClientSignup, setNotifyNewClientSignup] = useState(
     bundle.notifications.notifyNewClientSignup ?? true
   );
@@ -110,6 +119,9 @@ export function AdminSettingsClient({
     bundle.contactPublic.adminNotificationEmail || resendView.replyTo || ""
   );
   const [templateEdits, setTemplateEdits] = useState(templates);
+  const isResendReady = resendView.isEnabled && resendView.hasApiKey;
+  const [showResendConfig, setShowResendConfig] = useState(!isResendReady);
+  const [openTemplateId, setOpenTemplateId] = useState<string | null>(null);
 
   // 5. Team & Change Own Password
   const [newMemberName, setNewMemberName] = useState("");
@@ -254,6 +266,7 @@ export function AdminSettingsClient({
           key: "notifications",
           value: {
             ...bundle.notifications,
+            notifyNewBooking,
             notifyNewClientSignup,
           },
         }),
@@ -267,7 +280,7 @@ export function AdminSettingsClient({
       if (!r2.success) return setErrorMsg(r2.error);
       setContactPublic(updatedContact);
       setAdminNotifyEmail(cleanAdminEmail);
-      notifyOk("Notificación interna de nueva clienta guardada.", "internal-notifications");
+      notifyOk("Notificaciones al salón guardadas.", "internal-notifications");
     } finally {
       setBusy(false);
       setSavingKey(null);
@@ -324,7 +337,7 @@ export function AdminSettingsClient({
           Configuración del Negocio
         </h1>
         <p className="text-xs text-[#6c5763]">
-          Cerebro central: personaliza tu marca, dirección privada, banco, correos y cuentas sin tocar código.
+          Configura la identidad de tu salón, ubicación, datos bancarios, correos, avisos y equipo.
         </p>
       </div>
 
@@ -335,7 +348,7 @@ export function AdminSettingsClient({
             { id: "marca", label: "Marca y Landing", icon: Building2 },
             { id: "ubicacion", label: "Ubicación", icon: MapPin },
             { id: "banco", label: "Banco y Políticas", icon: CreditCard },
-            { id: "resend", label: "Resend y Correos", icon: Mail },
+            { id: "resend", label: "Correos y Avisos", icon: Mail },
             { id: "equipo", label: "Equipo", icon: Users },
           ] as const
         ).map((item) => {
@@ -773,287 +786,294 @@ export function AdminSettingsClient({
         </form>
       )}
 
-      {/* TAB 4: RESEND & TRANSACTIONAL TEMPLATES */}
+      {/* TAB 4: EMAILS, NOTIFICATIONS & TECHNICAL RESEND */}
       {tab === "resend" && (
         <div className="space-y-6">
-          <form onSubmit={saveResendTab} className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-base font-bold text-[#1f141b]">
-                  Conexión Resend (Guardada Cifrada)
-                </h2>
-                <p className="text-xs text-[#6c5763]">
-                  Conecta tu cuenta cuando la tengas lista. La API Key se cifra con AES-256-GCM en el servidor.
-                </p>
-              </div>
-              <label className="flex items-center gap-2 text-xs font-bold">
-                <input
-                  type="checkbox"
-                  checked={resendEnabled}
-                  onChange={(e) => setResendEnabled(e.target.checked)}
-                  className="h-4 w-4 accent-[var(--brand-primary)]"
-                />
-                <span>Activar envíos Resend</span>
-              </label>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-semibold">
-                  API Key de Resend{" "}
-                  {resendView.hasApiKey && (
-                    <span className="font-normal text-emerald-700">
-                      (Actual: {resendView.secretHint})
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="password"
-                  value={resendApiKey}
-                  onChange={(e) => setResendApiKey(e.target.value)}
-                  placeholder={
-                    resendView.hasApiKey
-                      ? "Deja vacío para conservar la clave actual"
-                      : "re_..."
-                  }
-                  className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold">Correo remitente</label>
-                <input
-                  type="email"
-                  required
-                  value={resendFromEmail}
-                  onChange={(e) => setResendFromEmail(e.target.value)}
-                  placeholder="contacto@lebrunee.cl"
-                  className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold">Nombre remitente</label>
-                <input
-                  type="text"
-                  required
-                  value={resendFromName}
-                  onChange={(e) => setResendFromName(e.target.value)}
-                  placeholder="Lebrunee Nails"
-                  className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-semibold">Reply-To</label>
-                <input
-                  type="email"
-                  value={resendReplyTo}
-                  onChange={(e) => setResendReplyTo(e.target.value)}
-                  className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 border-t border-[#f3e5ec] pt-4">
-              <SaveButton
-                busy={savingKey === "resend"}
-                saved={lastSavedKey === "resend"}
-                disabled={busy}
-                label="Guardar Resend"
-              />
-
-              <div className="flex flex-1 items-center gap-2">
-                <input
-                  type="email"
-                  value={testEmailTo}
-                  onChange={(e) => setTestEmailTo(e.target.value)}
-                  placeholder="Correo para prueba"
-                  className="min-h-11 flex-1 rounded-xl border border-[#e2cbd7] px-3 text-sm"
-                />
-                <button
-                  type="button"
-                  disabled={testingEmail || busy}
-                  aria-busy={testingEmail || undefined}
-                  onClick={handleTestEmail}
-                  className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-[#d9bccb] bg-white px-4 text-xs font-semibold text-[#1f141b] shadow-[0_2px_0_0_#e5cad8] transition-all hover:-translate-y-0.5 hover:bg-[#fdf5f9] active:translate-y-0.5 active:shadow-none disabled:cursor-wait disabled:opacity-60"
-                >
-                  {testingEmail ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Send className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  <span>{testingEmail ? "Enviando..." : "Probar"}</span>
-                </button>
-              </div>
-            </div>
-          </form>
-
-          {/* Transactional Booking Email Templates */}
-          <div className="space-y-3 rounded-3xl border border-[#eedbe4] bg-white p-5">
-            <div>
-              <h2 className="text-base font-bold text-[#1f141b]">
-                Correos Transaccionales de Reserva
-              </h2>
-              <p className="text-xs text-[#6c5763]">
-                Se envían al instante cuando una reserva cambia de estado. Variables:{" "}
-                {"{{nombre}}"}, {"{{codigo}}"}, {"{{servicio}}"}, {"{{fecha}}"},{" "}
-                {"{{hora}}"}, {"{{abono}}"}, {"{{direccion}}"}, {"{{negocio}}"}
-              </p>
-            </div>
-
-            {templateEdits
-              .filter((tpl) => TRANSACTIONAL_TEMPLATE_KEYS.has(tpl.template_key))
-              .map((tpl) => (
-                <div
-                  key={tpl.id}
-                  className="space-y-2.5 rounded-2xl border border-[#f2e4eb] p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-[#1f141b]">{tpl.name}</p>
-                    <label className="flex items-center gap-1.5 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={tpl.is_active}
-                        onChange={(e) =>
-                          setTemplateEdits((prev) =>
-                            prev.map((x) =>
-                              x.id === tpl.id
-                                ? { ...x, is_active: e.target.checked }
-                                : x
-                            )
-                          )
-                        }
-                      />
-                      <span>Activa</span>
-                    </label>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={tpl.subject}
-                    onChange={(e) =>
-                      setTemplateEdits((prev) =>
-                        prev.map((x) =>
-                          x.id === tpl.id ? { ...x, subject: e.target.value } : x
-                        )
-                      )
-                    }
-                    placeholder="Asunto"
-                    className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs font-semibold"
-                  />
-                  <input
-                    type="text"
-                    value={tpl.heading}
-                    onChange={(e) =>
-                      setTemplateEdits((prev) =>
-                        prev.map((x) =>
-                          x.id === tpl.id ? { ...x, heading: e.target.value } : x
-                        )
-                      )
-                    }
-                    placeholder="Encabezado"
-                    className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs"
-                  />
-                  <textarea
-                    rows={2}
-                    value={tpl.body_text}
-                    onChange={(e) =>
-                      setTemplateEdits((prev) =>
-                        prev.map((x) =>
-                          x.id === tpl.id ? { ...x, body_text: e.target.value } : x
-                        )
-                      )
-                    }
-                    className="w-full rounded-xl border border-[#e2cbd7] p-2.5 text-xs"
-                  />
-                  <SaveButton
-                    type="button"
-                    variant="secondary"
-                    busy={savingKey === tpl.id}
-                    saved={lastSavedKey === tpl.id}
-                    disabled={busy}
-                    label="Guardar plantilla"
-                    onClick={async () => {
-                      setBusy(true);
-                      setSavingKey(tpl.id);
-                      try {
-                        const res = await saveEmailTemplateAction({
-                          id: tpl.id,
-                          subject: tpl.subject,
-                          heading: tpl.heading,
-                          bodyText: tpl.body_text,
-                          isActive: tpl.is_active,
-                        });
-                        if (!res.success) return setErrorMsg(res.error);
-                        notifyOk(`Plantilla "${tpl.name}" guardada.`, tpl.id);
-                      } finally {
-                        setBusy(false);
-                        setSavingKey(null);
-                      }
-                    }}
-                  />
-                </div>
-              ))}
-          </div>
-
+          {/* 1. Salon Notifications (Primary Day-to-Day) */}
           <form
             onSubmit={saveInternalNotifications}
             className="space-y-4 rounded-3xl border border-[#eedbe4] bg-white p-5"
           >
-            <div>
-              <h2 className="text-base font-bold text-[#1f141b]">
-                Notificaciones al salón
-              </h2>
-              <p className="text-xs text-[#6c5763]">
-                Aplica únicamente cuando una clienta nueva crea su ficha desde{" "}
-                <code>/mi-cuenta</code> (no se envía si agenda directo en{" "}
-                <code>/reservar</code>).
-              </p>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fdf1f6] text-[var(--brand-primary)]">
+                <Bell className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-[#1f141b]">
+                  Notificaciones al salón
+                </h2>
+                <p className="text-xs text-[#6c5763]">
+                  Elige qué avisos automáticos quieres recibir y a qué correo del salón llegan.
+                </p>
+              </div>
             </div>
 
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-2xl border border-[#f2e4eb] bg-[#fdfafc] p-3.5 text-sm">
-              <input
-                type="checkbox"
-                checked={notifyNewClientSignup}
-                onChange={(e) => setNotifyNewClientSignup(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
-              />
-              <span>
-                <strong className="block text-[#1f141b]">
-                  Avisar por correo cuando se registre una nueva clienta
-                </strong>
-                <span className="text-xs text-[#6c5763]">
-                  Envía un correo con su nombre, WhatsApp, Instagram y cumpleaños al completar Mi Ficha por primera vez.
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-2xl border border-[#f2e4eb] bg-[#fdfafc] p-3.5 text-sm transition hover:border-[#dfc2d1]">
+                <input
+                  type="checkbox"
+                  checked={notifyNewBooking}
+                  onChange={(e) => setNotifyNewBooking(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                <span>
+                  <strong className="block text-[#1f141b]">
+                    Nueva reserva web
+                  </strong>
+                  <span className="text-xs text-[#6c5763]">
+                    Avisa con los datos de la clienta, servicio, fecha, hora y abono al agendar en{" "}
+                    <code>/reservar</code>.
+                  </span>
                 </span>
-              </span>
-            </label>
-
-            <div>
-              <label
-                htmlFor="admin-notify-email"
-                className="mb-1 block text-xs font-semibold text-[#1f141b]"
-              >
-                Correo del salón que recibe el aviso
               </label>
-              <input
-                id="admin-notify-email"
-                type="email"
-                value={adminNotifyEmail}
-                onChange={(e) => setAdminNotifyEmail(e.target.value)}
-                placeholder="salon@lebrunee.cl"
-                className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-base sm:text-sm"
-              />
+
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-2xl border border-[#f2e4eb] bg-[#fdfafc] p-3.5 text-sm transition hover:border-[#dfc2d1]">
+                <input
+                  type="checkbox"
+                  checked={notifyNewClientSignup}
+                  onChange={(e) => setNotifyNewClientSignup(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                <span>
+                  <strong className="block text-[#1f141b]">
+                    Nueva ficha en Mi Cuenta
+                  </strong>
+                  <span className="text-xs text-[#6c5763]">
+                    Avisa cuando una clienta nueva completa su ficha por primera vez en{" "}
+                    <code>/mi-cuenta</code>.
+                  </span>
+                </span>
+              </label>
             </div>
 
-            <SaveButton
-              busy={savingKey === "internal-notifications"}
-              saved={lastSavedKey === "internal-notifications"}
-              disabled={busy}
-              label="Guardar notificación"
-            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label
+                  htmlFor="admin-notify-email"
+                  className="mb-1 block text-xs font-semibold text-[#1f141b]"
+                >
+                  Correo del salón que recibe los avisos
+                </label>
+                <input
+                  id="admin-notify-email"
+                  type="email"
+                  value={adminNotifyEmail}
+                  onChange={(e) => setAdminNotifyEmail(e.target.value)}
+                  placeholder="contacto@tudominio.cl"
+                  className="min-h-11 w-full rounded-xl border border-[#e2cbd7] px-3 text-base sm:text-sm"
+                />
+              </div>
+
+              <SaveButton
+                busy={savingKey === "internal-notifications"}
+                saved={lastSavedKey === "internal-notifications"}
+                disabled={busy}
+                label="Guardar avisos"
+              />
+            </div>
           </form>
 
+          {/* 2. Transactional Booking Email Templates (Accordion for Clean Scanning) */}
+          <div className="space-y-3 rounded-3xl border border-[#eedbe4] bg-white p-5">
+            <div>
+              <h2 className="text-base font-bold text-[#1f141b]">
+                Plantillas de Correos a Clientas
+              </h2>
+              <p className="text-xs text-[#6c5763]">
+                Se envían automáticamente según el estado de la cita. Haz clic en una plantilla para editarla.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[
+                  "{{nombre}}",
+                  "{{codigo}}",
+                  "{{servicio}}",
+                  "{{fecha}}",
+                  "{{hora}}",
+                  "{{abono}}",
+                  "{{titular}}",
+                  "{{rut}}",
+                  "{{banco}}",
+                  "{{numero_cuenta}}",
+                  "{{correo_pago}}",
+                  "{{link_whatsapp}}",
+                  "{{direccion}}",
+                ].map((token) => (
+                  <code
+                    key={token}
+                    className="rounded-lg bg-[#fdf3f8] px-2 py-0.5 text-[11px] font-medium text-[#7b2651]"
+                  >
+                    {token}
+                  </code>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              {templateEdits
+                .filter((tpl) => TRANSACTIONAL_TEMPLATE_KEYS.has(tpl.template_key))
+                .map((tpl) => {
+                  const isOpen = openTemplateId === tpl.id;
+                  return (
+                    <div
+                      key={tpl.id}
+                      className="overflow-hidden rounded-2xl border border-[#f2e4eb] bg-[#fdfafc]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenTemplateId(isOpen ? null : tpl.id)
+                        }
+                        aria-expanded={isOpen}
+                        className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#faf2f6]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-bold text-[#1f141b]">
+                              {tpl.name}
+                            </p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                tpl.is_active
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-stone-100 text-stone-500"
+                              }`}
+                            >
+                              {tpl.is_active ? "Activa" : "Pausada"}
+                            </span>
+                          </div>
+                          <p className="truncate text-xs text-[#6c5763]">
+                            {tpl.subject}
+                          </p>
+                        </div>
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 text-[#6c5763] transition-transform ${
+                            isOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {isOpen && (
+                        <div className="space-y-3 border-t border-[#f2e4eb] bg-white p-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-[#6c5763]">
+                              Estado de la plantilla
+                            </span>
+                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#1f141b]">
+                              <input
+                                type="checkbox"
+                                checked={tpl.is_active}
+                                onChange={(e) =>
+                                  setTemplateEdits((prev) =>
+                                    prev.map((x) =>
+                                      x.id === tpl.id
+                                        ? { ...x, is_active: e.target.checked }
+                                        : x
+                                    )
+                                  )
+                                }
+                                className="h-4 w-4 accent-[var(--brand-primary)]"
+                              />
+                              <span>Activa</span>
+                            </label>
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-[11px] font-semibold text-[#6c5763]">
+                              Asunto del correo
+                            </label>
+                            <input
+                              type="text"
+                              value={tpl.subject}
+                              onChange={(e) =>
+                                setTemplateEdits((prev) =>
+                                  prev.map((x) =>
+                                    x.id === tpl.id
+                                      ? { ...x, subject: e.target.value }
+                                      : x
+                                  )
+                                )
+                              }
+                              placeholder="Asunto"
+                              className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs font-semibold"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-[11px] font-semibold text-[#6c5763]">
+                              Encabezado principal
+                            </label>
+                            <input
+                              type="text"
+                              value={tpl.heading}
+                              onChange={(e) =>
+                                setTemplateEdits((prev) =>
+                                  prev.map((x) =>
+                                    x.id === tpl.id
+                                      ? { ...x, heading: e.target.value }
+                                      : x
+                                  )
+                                )
+                              }
+                              placeholder="Encabezado"
+                              className="min-h-10 w-full rounded-xl border border-[#e2cbd7] px-3 text-xs"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-[11px] font-semibold text-[#6c5763]">
+                              Mensaje
+                            </label>
+                            <textarea
+                              rows={5}
+                              value={tpl.body_text}
+                              onChange={(e) =>
+                                setTemplateEdits((prev) =>
+                                  prev.map((x) =>
+                                    x.id === tpl.id
+                                      ? { ...x, body_text: e.target.value }
+                                      : x
+                                  )
+                                )
+                              }
+                              className="w-full rounded-xl border border-[#e2cbd7] p-3 text-xs leading-relaxed"
+                            />
+                          </div>
+
+                          <SaveButton
+                            type="button"
+                            variant="secondary"
+                            busy={savingKey === tpl.id}
+                            saved={lastSavedKey === tpl.id}
+                            disabled={busy}
+                            label="Guardar plantilla"
+                            onClick={async () => {
+                              setBusy(true);
+                              setSavingKey(tpl.id);
+                              try {
+                                const res = await saveEmailTemplateAction({
+                                  id: tpl.id,
+                                  subject: tpl.subject,
+                                  heading: tpl.heading,
+                                  bodyText: tpl.body_text,
+                                  isActive: tpl.is_active,
+                                });
+                                if (!res.success) return setErrorMsg(res.error);
+                                notifyOk(`Plantilla "${tpl.name}" guardada.`, tpl.id);
+                              } finally {
+                                setBusy(false);
+                                setSavingKey(null);
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* 3. Link to Proactive Communications */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[#eedbe4] bg-[#fdf9fb] p-5">
             <div>
               <p className="text-sm font-bold text-[#1f141b]">
@@ -1070,6 +1090,168 @@ export function AdminSettingsClient({
               <span>Ir a Comunicaciones</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
+          </div>
+
+          {/* 4. Technical Resend Connection (Collapsed by default when already configured) */}
+          <div className="overflow-hidden rounded-3xl border border-[#eedbe4] bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f7edf2] text-[#6c5763]">
+                  <Settings2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-sm font-bold text-[#1f141b]">
+                      Conexión técnica de envíos (Resend)
+                    </h2>
+                    {isResendReady ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Conectado
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                        Pendiente de configurar
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#6c5763]">
+                    {isResendReady
+                      ? `Remitente: ${resendView.fromName || "Sin nombre"} <${resendView.fromEmail}>${
+                          resendView.lastTestStatus === "OK" ? " · Verificado" : ""
+                        }`
+                      : "Configuración única para habilitar el envío automático de correos."}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowResendConfig((prev) => !prev)}
+                aria-expanded={showResendConfig}
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[#e2cbd7] bg-[#fdfafc] px-3.5 text-xs font-semibold text-[#4a3541] transition hover:bg-[#f7edf2]"
+              >
+                <span>{showResendConfig ? "Ocultar" : "Configuración avanzada"}</span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${
+                    showResendConfig ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            </div>
+
+            {showResendConfig && (
+              <form
+                onSubmit={saveResendTab}
+                className="space-y-4 border-t border-[#f3e5ec] bg-[#fdfafc] p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-[#6c5763]">
+                    La API Key se cifra con AES-256-GCM en el servidor antes de guardarse.
+                  </p>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-[#1f141b]">
+                    <input
+                      type="checkbox"
+                      checked={resendEnabled}
+                      onChange={(e) => setResendEnabled(e.target.checked)}
+                      className="h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                    <span>Activar envíos Resend</span>
+                  </label>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-semibold">
+                      API Key de Resend{" "}
+                      {resendView.hasApiKey && (
+                        <span className="font-normal text-emerald-700">
+                          (Actual: {resendView.secretHint})
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={resendApiKey}
+                      onChange={(e) => setResendApiKey(e.target.value)}
+                      placeholder={
+                        resendView.hasApiKey
+                          ? "Deja vacío para conservar la clave actual"
+                          : "re_..."
+                      }
+                      className="min-h-11 w-full rounded-xl border border-[#e2cbd7] bg-white px-3 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold">Correo remitente</label>
+                    <input
+                      type="email"
+                      required
+                      value={resendFromEmail}
+                      onChange={(e) => setResendFromEmail(e.target.value)}
+                      placeholder="contacto@tudominio.cl"
+                      className="min-h-11 w-full rounded-xl border border-[#e2cbd7] bg-white px-3 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold">Nombre remitente</label>
+                    <input
+                      type="text"
+                      required
+                      value={resendFromName}
+                      onChange={(e) => setResendFromName(e.target.value)}
+                      placeholder="Nombre del salón"
+                      className="min-h-11 w-full rounded-xl border border-[#e2cbd7] bg-white px-3 text-sm"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-semibold">Reply-To</label>
+                    <input
+                      type="email"
+                      value={resendReplyTo}
+                      onChange={(e) => setResendReplyTo(e.target.value)}
+                      className="min-h-11 w-full rounded-xl border border-[#e2cbd7] bg-white px-3 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 border-t border-[#f3e5ec] pt-4">
+                  <SaveButton
+                    busy={savingKey === "resend"}
+                    saved={lastSavedKey === "resend"}
+                    disabled={busy}
+                    label="Guardar Resend"
+                  />
+
+                  <div className="flex flex-1 items-center gap-2">
+                    <input
+                      type="email"
+                      value={testEmailTo}
+                      onChange={(e) => setTestEmailTo(e.target.value)}
+                      placeholder="Correo para prueba"
+                      className="min-h-11 flex-1 rounded-xl border border-[#e2cbd7] bg-white px-3 text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={testingEmail || busy}
+                      aria-busy={testingEmail || undefined}
+                      onClick={handleTestEmail}
+                      className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-[#d9bccb] bg-white px-4 text-xs font-semibold text-[#1f141b] shadow-[0_2px_0_0_#e5cad8] transition-all hover:-translate-y-0.5 hover:bg-[#fdf5f9] active:translate-y-0.5 active:shadow-none disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {testingEmail ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      <span>{testingEmail ? "Enviando..." : "Probar"}</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

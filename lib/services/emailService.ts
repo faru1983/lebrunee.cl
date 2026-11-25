@@ -52,18 +52,48 @@ export async function getResendIntegrationView(
   };
 }
 
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function linkifyEscapedText(escapedText: string, primaryColor: string) {
+  return escapedText.replace(
+    /https?:\/\/[^\s<]+/g,
+    (url) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:${primaryColor};font-weight:600;word-break:break-all;">${url}</a>`
+  );
+}
+
 function buildBrandedHtml(params: {
   businessName: string;
   primaryColor: string;
   heading: string;
   bodyText: string;
   footerNote: string;
+  ctaButton?: { label: string; url: string };
 }) {
-  const safeBody = params.bodyText
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\n/g, "<br/>");
+  const safeBody = linkifyEscapedText(
+    escapeHtml(params.bodyText).replace(/\n/g, "<br/>"),
+    params.primaryColor
+  );
+
+  const validCtaUrl =
+    params.ctaButton && /^https?:\/\//i.test(params.ctaButton.url)
+      ? params.ctaButton.url
+      : null;
+
+  const ctaHtml =
+    validCtaUrl && params.ctaButton
+      ? `<div style="margin:22px 0 6px;">
+          <a href="${escapeHtml(validCtaUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:${params.primaryColor};color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 22px;border-radius:9999px;">
+            ${escapeHtml(params.ctaButton.label)}
+          </a>
+        </div>`
+      : "";
 
   return `<!doctype html>
 <html lang="es">
@@ -78,6 +108,7 @@ function buildBrandedHtml(params: {
       <tr>
         <td style="padding:28px;font-size:15px;line-height:1.65;color:#2f2430;">
           <p style="margin:0 0 18px;">${safeBody}</p>
+          ${ctaHtml}
           <hr style="border:none;border-top:1px solid #f2e4eb;margin:22px 0;" />
           <p style="margin:0;font-size:12px;color:#7a6674;">${params.footerNote}</p>
         </td>
@@ -94,6 +125,7 @@ export async function sendBusinessEmail(params: {
   variables: Record<string, string | number>;
   category?: "transactional" | "reminder" | "campaign";
   appointmentId?: string;
+  ctaButton?: { label: string; url: string };
   fallbackTemplate?: {
     subject: string;
     heading: string;
@@ -198,6 +230,7 @@ export async function sendBusinessEmail(params: {
         heading,
         bodyText,
         footerNote: `${bundle.business.name} · ${bundle.contactPublic.publicLocationLabel}`,
+        ctaButton: params.ctaButton,
       }),
     });
 

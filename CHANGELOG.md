@@ -5,6 +5,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [Unreleased]
 
 ### Added
+- Notificación interna configurable por correo al salón (`adminNotificationEmail` / fallback `replyTo`) cuando una clienta realiza una nueva reserva en `/reservar` (`notifyNewBooking` en `business_settings`, configurable en `/admin/settings?tab=resend`, plantilla `admin_new_booking`).
+- Soporte de enlaces automáticos y botón CTA en `buildBrandedHtml` / `sendBusinessEmail` (`lib/services/emailService.ts`).
 - Notificación interna configurable por correo al salón cuando una clienta nueva registra su ficha por primera vez desde `/mi-cuenta` (`upsertVerifiedClientProfile`, `notifyNewClientSignup` en `business_settings`, configurable en `/admin/settings?tab=resend`). No se envía cuando la clienta agenda directamente en `/reservar`.
 - Onboarding previo en `/mi-cuenta`: acceso con **Magic Link** (1 clic vía `/auth/callback?next=/mi-cuenta`) + código OTP de 6 dígitos de respaldo, y tarjeta completa **"Mi Ficha"** (`upsertClientProfileAction`) para registrar/editar nombre, apellidos, WhatsApp, Instagram y cumpleaños incluso antes de la primera reserva.
 - Botones **"Copiar invitación WhatsApp"** y **"Solo enlace"** en `/admin/clients` para difundir el link de registro previo de clientas.
@@ -14,6 +16,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Sincronización de pestañas y filtros por query string en Admin: `/admin/settings?tab=...`, `/admin/comunicaciones?tab=...`, `/admin/finanzas?tab=...` y `/admin/agenda?status=...`.
 
 ### Changed
+- Rediseño UX de `/admin/settings?tab=resend` (`AdminSettingsClient.tsx`): pestaña renombrada a **"Correos y Avisos"**, priorizando **Notificaciones al salón** y **Plantillas de Correos a Clientas** en acordeones colapsables, mientras la **Conexión técnica de envíos (Resend)** queda al final y oculta por defecto cuando ya está conectada.
 - Actualizada URL fallback por defecto de `https://lebrunee.vercel.app` a `https://lebrunee.cl` en `app/robots.ts`, `app/sitemap.ts`, `app/api/cron/reminders/route.ts` y `app/actions/crmFinanceActions.ts`.
 - Formulario Paso 3 en `/reservar` (`BookingWizard.tsx`): reordenamiento y alineación del campo `Fecha de cumpleaños (opcional)` (texto de ayuda debajo del input), normalización de `Nombre`/`Apellidos` (Title Case), correo e Instagram (minúsculas), y máscaras inteligentes en foco/blur para `WhatsApp` (`+56 ` al enfocar, vacío si no se completa y E.164 limpio `+569...` en DB) e `Instagram` (`@` al enfocar, vacío si queda solo `@` y guardado sin `@` en minúsculas).
 - Flujo `/reservar` (Paso 3): cuando `requireClientOtp` está activo, ahora solicita primero el correo y código OTP antes del formulario; tras verificar (o si ya hay sesión activa en SSR), precarga automáticamente la ficha de `clients` (con resumen editable y opción *"Usar otro correo"*), y `createBookingCore` preserva `instagram_handle` existente si viene vacío.

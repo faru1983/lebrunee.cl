@@ -120,6 +120,7 @@ const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   secondReminderHoursBefore: 48,
   dailyEmailLimit: 100,
   transactionalReserve: 25,
+  notifyNewBooking: true,
   notifyNewClientSignup: true,
 };
 

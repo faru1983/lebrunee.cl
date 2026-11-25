@@ -5,7 +5,7 @@ import {
   getActiveBusinessBundle,
   getPrivateLocationForServer,
 } from "@/lib/services/businessService";
-import { sendBusinessEmail } from "@/lib/services/emailService";
+import { getResendIntegrationView, sendBusinessEmail } from "@/lib/services/emailService";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import type {
   AppointmentRecord,
@@ -141,7 +141,9 @@ export async function upsertVerifiedClientProfile(params: {
     try {
       const bundle = await getActiveBusinessBundle();
       if (bundle.notifications.notifyNewClientSignup) {
-        const recipient = bundle.contactPublic.adminNotificationEmail?.trim();
+        const recipient =
+          bundle.contactPublic.adminNotificationEmail?.trim() ||
+          (await getResendIntegrationView(params.businessId)).replyTo?.trim();
         if (recipient) {
           const fullName = [firstName, lastName].filter(Boolean).join(" ");
           await sendBusinessEmail({
@@ -420,6 +422,7 @@ export async function createBookingCore(params: {
 
   const whatsappUrl = buildWhatsAppUrl(bundle.contactPublic.whatsappNumber, whatsappText);
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://lebrunee.cl";
   const shouldSendEmail = !isAdmin || Boolean(adminInput.sendEmail);
   if (shouldSendEmail) {
     const privateLoc = confirmNow
@@ -431,6 +434,9 @@ export async function createBookingCore(params: {
       to: email,
       templateKey: confirmNow ? "booking_confirmed" : "booking_pending",
       appointmentId: appointment.id,
+      ctaButton: confirmNow
+        ? undefined
+        : { label: "Enviar comprobante por WhatsApp", url: whatsappUrl },
       variables: {
         nombre: firstName,
         codigo: bookingCode,
@@ -438,9 +444,81 @@ export async function createBookingCore(params: {
         fecha: dateHuman,
         hora: input.startTime,
         abono: formatClp(depositRequired),
+        total: formatClp(totalEstimated),
         direccion: privateLoc?.exactAddress || bundle.contactPublic.publicLocationLabel,
+        titular: bundle.paymentBank.accountHolderName,
+        rut: bundle.paymentBank.accountHolderRut,
+        banco: bundle.paymentBank.bankName,
+        tipo_cuenta: bundle.paymentBank.accountType,
+        numero_cuenta: bundle.paymentBank.accountNumber,
+        correo_pago: bundle.paymentBank.transferEmail || "",
+        link_whatsapp: whatsappUrl,
+        link_citas: `${siteUrl}/mi-cuenta`,
       },
+      fallbackTemplate: confirmNow
+        ? undefined
+        : {
+            subject: "Tu solicitud de cita {{codigo}} en {{negocio}}",
+            heading: "¡Recibimos tu solicitud de hora!",
+            bodyText:
+              "Hola {{nombre}}, reservamos temporalmente tu cupo para {{servicio}} el {{fecha}} a las {{hora}} (Código {{codigo}}).\n\n" +
+              "Para confirmar tu cita, realiza la transferencia del abono de {{abono}} a los siguientes datos:\n" +
+              "• Titular: {{titular}}\n" +
+              "• RUT: {{rut}}\n" +
+              "• Banco: {{banco}} · {{tipo_cuenta}}\n" +
+              "• N° de cuenta: {{numero_cuenta}}\n" +
+              "• Correo comprobante: {{correo_pago}}\n\n" +
+              "Luego envíanos tu comprobante por WhatsApp aquí:\n{{link_whatsapp}}\n\n" +
+              "Apenas validemos tu transferencia, tu cita quedará confirmada.",
+          },
     });
+  }
+
+  if (!isAdmin && bundle.notifications.notifyNewBooking) {
+    try {
+      const recipient =
+        bundle.contactPublic.adminNotificationEmail?.trim() ||
+        (await getResendIntegrationView(businessId)).replyTo?.trim();
+      if (recipient) {
+        const fullName = [firstName, lastName].filter(Boolean).join(" ");
+        await sendBusinessEmail({
+          businessId,
+          to: recipient,
+          templateKey: "admin_new_booking",
+          category: "transactional",
+          appointmentId: appointment.id,
+          variables: {
+            nombre: fullName,
+            correo: email,
+            telefono: phone,
+            codigo: bookingCode,
+            servicio: fullServiceName,
+            fecha: dateHuman,
+            hora: input.startTime,
+            abono: formatClp(depositRequired),
+            total: formatClp(totalEstimated),
+            notas: input.clientNotes?.trim() || "Sin notas",
+          },
+          fallbackTemplate: {
+            subject: "Nueva reserva {{codigo}} — {{nombre}} | {{negocio}}",
+            heading: "¡Nueva reserva recibida!",
+            bodyText:
+              "Se registró una nueva solicitud de reserva desde la web:\n\n" +
+              "• Código: {{codigo}}\n" +
+              "• Clienta: {{nombre}}\n" +
+              "• Correo: {{correo}}\n" +
+              "• WhatsApp: {{telefono}}\n" +
+              "• Servicio: {{servicio}}\n" +
+              "• Fecha y hora: {{fecha}} a las {{hora}}\n" +
+              "• Abono requerido: {{abono}} (Total estimado: {{total}})\n" +
+              "• Notas: {{notas}}\n\n" +
+              "Cuando recibas su comprobante por WhatsApp, confirma la cita desde el panel de Agenda.",
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[createBookingCore] Error enviando aviso interno:", err);
+    }
   }
 
   return {
