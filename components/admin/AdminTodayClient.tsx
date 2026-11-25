@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  CalendarRange,
   Check,
   CheckCircle2,
   Clock,
   MessageCircle,
   Plus,
+  ShieldAlert,
   Sparkles,
   XCircle,
 } from "lucide-react";
@@ -29,6 +32,8 @@ import { buildWhatsAppUrl, formatClp, formatDateLongEs } from "@/lib/utils";
 
 interface AdminTodayClientProps {
   today: string;
+  businessName: string;
+  isAgendaOpen: boolean;
   todayAppointments: AppointmentRecord[];
   pendingDeposit: AppointmentRecord[];
   upcomingConfirmed: AppointmentRecord[];
@@ -43,6 +48,8 @@ interface AdminTodayClientProps {
 
 export function AdminTodayClient({
   today,
+  businessName,
+  isAgendaOpen,
   todayAppointments,
   pendingDeposit,
   upcomingConfirmed,
@@ -100,14 +107,34 @@ export function AdminTodayClient({
           <h1 className="font-serif text-3xl font-semibold text-[#1f141b]">Hoy en el estudio</h1>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[var(--brand-accent)]"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Nueva cita</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/agenda?view=day"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#e2cbd7] bg-white px-3.5 text-xs font-semibold text-[#1f141b] hover:bg-[#fdf5f9]"
+          >
+            <CalendarRange className="h-4 w-4 text-[var(--brand-primary)]" aria-hidden="true" />
+            <span>Agenda Pro</span>
+          </Link>
+          <Link
+            href="/admin/agenda?emergency=1"
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold ${
+              isAgendaOpen
+                ? "border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
+                : "border-red-300 bg-red-100 text-red-900"
+            }`}
+          >
+            <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+            <span>{isAgendaOpen ? "Emergencia" : "Web PAUSADA"}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[var(--brand-accent)]"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Nueva cita</span>
+          </button>
+        </div>
       </div>
 
       {toast && (
@@ -335,9 +362,11 @@ export function AdminTodayClient({
           </h2>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {upcomingConfirmed.slice(0, 6).map((appt) => (
-              <div
+              <button
                 key={appt.id}
-                className="flex items-center justify-between rounded-2xl border border-[#eedbe4] bg-white px-4 py-3 text-xs"
+                type="button"
+                onClick={() => setDetailTarget(appt)}
+                className="flex items-center justify-between rounded-2xl border border-[#eedbe4] bg-white px-4 py-3 text-left text-xs transition hover:border-[var(--brand-primary)] hover:bg-[#fff9fb]"
               >
                 <div>
                   <p className="font-bold text-[#1f141b]">
@@ -350,7 +379,7 @@ export function AdminTodayClient({
                 <span className="font-semibold text-[var(--brand-primary)]">
                   {appt.booking_code}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </section>
@@ -371,11 +400,15 @@ export function AdminTodayClient({
         key={detailTarget?.id || "none"}
         appointment={detailTarget}
         onClose={() => setDetailTarget(null)}
-        onUpdated={() => {
-          setToast("Cita actualizada correctamente.");
+        onUpdated={(msg) => {
+          setToast(msg || "Cita actualizada correctamente.");
           router.refresh();
         }}
         paymentMethods={paymentMethods}
+        services={services}
+        addons={addons}
+        staff={staff}
+        businessName={businessName}
       />
     </div>
   );

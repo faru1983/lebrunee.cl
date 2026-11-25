@@ -149,7 +149,13 @@ export function AdminShell({
           </div>
         </header>
 
-        <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={`mx-auto w-full flex-1 p-4 sm:p-6 ${
+            pathname.startsWith("/admin/agenda") ? "max-w-7xl" : "max-w-5xl"
+          }`}
+        >
           {children}
         </main>
       </div>

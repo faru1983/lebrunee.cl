@@ -250,21 +250,28 @@ export async function createBookingCore(params: {
   const depositRequired =
     service.deposit_override_clp ?? bundle.paymentBank.depositAmountClp;
 
-  // Verify availability on the server
-  const availableSlots = await getAvailableSlotsForDate({
-    businessId,
-    staffId: input.staffId,
-    dateStr: input.appointmentDate,
-    durationMinutes: totalDuration,
-    bufferMinutes: effectiveBuffer,
-    ignoreAdvanceRule: isAdmin,
-  });
+  const adminInput = input as z.infer<typeof CreateAdminAppointmentSchema>;
+  const allowAdminOverride = Boolean(isAdmin && adminInput.allowOverride);
 
-  const matchingSlot = availableSlots.find((s) => s.startTime === input.startTime);
-  if (!matchingSlot) {
-    throw new Error(
-      "La hora elegida ya no está disponible. Por favor elige otro bloque libre."
-    );
+  // Verify availability on the server (unless explicit admin override)
+  if (!allowAdminOverride) {
+    const availableSlots = await getAvailableSlotsForDate({
+      businessId,
+      staffId: input.staffId,
+      dateStr: input.appointmentDate,
+      durationMinutes: totalDuration,
+      bufferMinutes: effectiveBuffer,
+      ignoreAdvanceRule: isAdmin,
+    });
+
+    const matchingSlot = availableSlots.find((s) => s.startTime === input.startTime);
+    if (!matchingSlot) {
+      throw new Error(
+        isAdmin
+          ? "Ese horario tiene tope o está fuera de turno. Activa 'Forzar horario' si deseas agendar igual."
+          : "La hora elegida ya no está disponible. Por favor elige otro bloque libre."
+      );
+    }
   }
 
   const startMin = timeToMinutes(input.startTime);
@@ -321,7 +328,6 @@ export async function createBookingCore(params: {
     clientId = createdClient.id;
   }
 
-  const adminInput = input as z.infer<typeof CreateAdminAppointmentSchema>;
   const confirmNow = Boolean(isAdmin && adminInput.confirmImmediately);
   const depositPaid = confirmNow
     ? adminInput.depositPaidClp || depositRequired

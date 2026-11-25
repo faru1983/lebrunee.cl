@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Loader2, Search, ShieldAlert, UserCheck } from "lucide-react";
 import { createAdminAppointmentAction } from "@/app/actions/adminActions";
 import { getAvailableSlotsAction } from "@/app/actions/bookingActions";
 import { SaveButton } from "@/components/ui/SaveButton";
 import { ModalDialog } from "@/components/ui/ModalDialog";
-import type { ServiceAddon, ServiceItem, StaffMember, TimeSlotOption } from "@/lib/types";
+import type {
+  AgendaClientOption,
+  ServiceAddon,
+  ServiceItem,
+  StaffMember,
+  TimeSlotOption,
+} from "@/lib/types";
 import { formatClp } from "@/lib/utils";
 
 interface ManualAppointmentModalProps {
@@ -16,7 +22,10 @@ interface ManualAppointmentModalProps {
   services: ServiceItem[];
   addons: ServiceAddon[];
   staff: StaffMember[];
+  clients?: AgendaClientOption[];
   defaultDate: string;
+  defaultTime?: string;
+  defaultStaffId?: string;
   depositDefaultClp: number;
 }
 
@@ -27,16 +36,22 @@ export function ManualAppointmentModal({
   services,
   addons,
   staff,
+  clients = [],
   defaultDate,
+  defaultTime = "",
+  defaultStaffId,
   depositDefaultClp,
 }: ManualAppointmentModalProps) {
   const [serviceId, setServiceId] = useState(services[0]?.id || "");
   const [addonIds, setAddonIds] = useState<string[]>([]);
-  const [staffId, setStaffId] = useState(staff[0]?.id || "");
+  const [staffId, setStaffId] = useState(defaultStaffId || staff[0]?.id || "");
   const [dateStr, setDateStr] = useState(defaultDate);
   const [slots, setSlots] = useState<TimeSlotOption[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [startTime, setStartTime] = useState("");
+  const [startTime, setStartTime] = useState(defaultTime || "10:00");
+  const [allowOverride, setAllowOverride] = useState(Boolean(defaultTime));
+
+  const [clientQuery, setClientQuery] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -49,6 +64,21 @@ export function ManualAppointmentModal({
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const matchedClients = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return clients
+      .filter((c) => {
+        const full = `${c.first_name} ${c.last_name || ""}`.toLowerCase();
+        return (
+          full.includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          (c.phone || "").includes(q)
+        );
+      })
+      .slice(0, 6);
+  }, [clients, clientQuery]);
+
   const selectedService = services.find((s) => s.id === serviceId) || services[0];
   const totalDuration =
     (selectedService?.duration_minutes || 60) +
@@ -56,8 +86,13 @@ export function ManualAppointmentModal({
       .filter((a) => addonIds.includes(a.id))
       .reduce((acc, a) => acc + a.duration_minutes, 0);
 
-  async function refreshSlots(nextDate: string, nextServiceId = serviceId, nextAddons = addonIds) {
-    if (!staffId || !nextDate) return;
+  async function refreshSlots(
+    nextDate: string,
+    nextServiceId = serviceId,
+    nextAddons = addonIds,
+    nextStaffId = staffId
+  ) {
+    if (!nextStaffId || !nextDate) return;
     setLoadingSlots(true);
     setErrorMsg(null);
     try {
@@ -69,15 +104,26 @@ export function ManualAppointmentModal({
           .reduce((acc, a) => acc + a.duration_minutes, 0);
 
       const res = await getAvailableSlotsAction({
-        staffId,
+        staffId: nextStaffId,
         dateStr: nextDate,
         durationMinutes: dur,
       });
       setSlots(res);
-      setStartTime(res[0]?.startTime || "");
+      if (!allowOverride && res.length > 0 && !res.some((r) => r.startTime === startTime)) {
+        setStartTime(res[0].startTime);
+      }
     } finally {
       setLoadingSlots(false);
     }
+  }
+
+  function applyExistingClient(c: AgendaClientOption) {
+    setFirstName(c.first_name);
+    setLastName(c.last_name || "");
+    setEmail(c.email);
+    setPhone(c.phone || "+56 9 ");
+    setBirthDate(c.birth_date || "");
+    setClientQuery("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -100,6 +146,7 @@ export function ManualAppointmentModal({
         depositPaidClp: confirmImmediately ? depositPaidClp : 0,
         sendEmail,
         adminNotes,
+        allowOverride,
       });
 
       if (!res.success) {
@@ -113,6 +160,7 @@ export function ManualAppointmentModal({
       setPhone("+56 9 ");
       setBirthDate("");
       setAdminNotes("");
+      setClientQuery("");
       onCreated();
       onClose();
     } finally {
@@ -121,11 +169,57 @@ export function ManualAppointmentModal({
   }
 
   return (
-    <ModalDialog open={open} onClose={onClose} title="Nueva cita manual">
+    <ModalDialog open={open} onClose={onClose} title="Nueva cita manual" maxWidthClass="max-w-xl">
       <form onSubmit={handleSubmit} className="space-y-4">
         {errorMsg && (
           <div role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-medium text-red-800">
             {errorMsg}
+          </div>
+        )}
+
+        {/* Quick Existing Client Picker */}
+        {clients.length > 0 && (
+          <div className="space-y-2 rounded-2xl border border-[#f2e4eb] bg-[#fdf9fb] p-3">
+            <label
+              htmlFor="m-client-lookup"
+              className="flex items-center gap-1.5 text-xs font-bold text-[#1f141b]"
+            >
+              <UserCheck className="h-3.5 w-3.5 text-[var(--brand-primary)]" aria-hidden="true" />
+              Autocompletar clienta existente (opcional)
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7a6571]"
+                aria-hidden="true"
+              />
+              <input
+                id="m-client-lookup"
+                type="search"
+                value={clientQuery}
+                onChange={(e) => setClientQuery(e.target.value)}
+                placeholder="Escribe nombre, correo o WhatsApp..."
+                className="min-h-10 w-full rounded-xl border border-[#e2cbd7] bg-white pl-9 pr-3 text-xs"
+              />
+            </div>
+            {matchedClients.length > 0 && (
+              <div className="grid gap-1 pt-1">
+                {matchedClients.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => applyExistingClient(c)}
+                    className="flex items-center justify-between rounded-xl border border-[#eedbe4] bg-white px-3 py-2 text-left text-xs hover:border-[var(--brand-primary)] hover:bg-[#fff6fa]"
+                  >
+                    <span className="font-bold text-[#1f141b]">
+                      {c.first_name} {c.last_name || ""}
+                    </span>
+                    <span className="text-[11px] text-[#6c5763]">
+                      {c.phone || c.email}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -153,25 +247,30 @@ export function ManualAppointmentModal({
         {addons.length > 0 && (
           <div className="space-y-1.5">
             <span className="block text-xs font-semibold">Adicionales</span>
-            {addons.map((a) => (
-              <label key={a.id} className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={addonIds.includes(a.id)}
-                  onChange={() => {
-                    const next = addonIds.includes(a.id)
-                      ? addonIds.filter((x) => x !== a.id)
-                      : [...addonIds, a.id];
-                    setAddonIds(next);
-                    refreshSlots(dateStr, serviceId, next);
-                  }}
-                  className="accent-[var(--brand-primary)]"
-                />
-                <span>
-                  {a.name} (+{a.duration_minutes} min)
-                </span>
-              </label>
-            ))}
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {addons.map((a) => (
+                <label
+                  key={a.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#f2e4eb] px-2.5 py-1.5 text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    checked={addonIds.includes(a.id)}
+                    onChange={() => {
+                      const next = addonIds.includes(a.id)
+                        ? addonIds.filter((x) => x !== a.id)
+                        : [...addonIds, a.id];
+                      setAddonIds(next);
+                      refreshSlots(dateStr, serviceId, next);
+                    }}
+                    className="accent-[var(--brand-primary)]"
+                  />
+                  <span>
+                    {a.name} (+{a.duration_minutes} min)
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
@@ -183,7 +282,10 @@ export function ManualAppointmentModal({
             <select
               id="m-staff"
               value={staffId}
-              onChange={(e) => setStaffId(e.target.value)}
+              onChange={(e) => {
+                setStaffId(e.target.value);
+                refreshSlots(dateStr, serviceId, addonIds, e.target.value);
+              }}
               className="min-h-11 w-full rounded-xl border border-[#e2cbd7] bg-white px-3 text-sm"
             >
               {staff.map((st) => (
@@ -219,10 +321,10 @@ export function ManualAppointmentModal({
             </label>
             {loadingSlots ? (
               <div className="flex min-h-11 items-center gap-1 text-xs text-[#6c5763]">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 Buscando...
               </div>
-            ) : slots.length > 0 ? (
+            ) : !allowOverride && slots.length > 0 ? (
               <select
                 id="m-time"
                 value={startTime}
@@ -247,15 +349,31 @@ export function ManualAppointmentModal({
                 />
                 <button
                   type="button"
-                  onClick={() => refreshSlots(dateStr)}
-                  className="rounded-xl border border-[#e2cbd7] px-2 text-xs font-semibold"
+                  onClick={() => {
+                    setAllowOverride(false);
+                    refreshSlots(dateStr);
+                  }}
+                  title="Ver bloques libres"
+                  className="rounded-xl border border-[#e2cbd7] px-2.5 text-xs font-semibold"
                 >
-                  Ver
+                  Libres
                 </button>
               </div>
             )}
           </div>
         </div>
+
+        {/* Admin Override Toggle */}
+        <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-semibold text-amber-950">
+          <input
+            type="checkbox"
+            checked={allowOverride}
+            onChange={(e) => setAllowOverride(e.target.checked)}
+            className="accent-amber-700"
+          />
+          <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden="true" />
+          <span>Horario libre / Sobrecupo (permitir cualquier hora aunque esté fuera de turno)</span>
+        </label>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>

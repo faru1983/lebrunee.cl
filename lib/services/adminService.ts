@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient, hasValidServiceRoleKey } from "@/lib/supabase/server";
 import type {
+  AgendaClientOption,
   AppointmentRecord,
   AvailabilityException,
   AvailabilityFixedSlot,
@@ -104,6 +105,62 @@ export async function getAdminAgendaRange(
     .order("start_time", { ascending: true });
 
   return (data || []) as AppointmentRecord[];
+}
+
+export async function getAdminAgendaWorkspaceData(
+  businessId: string,
+  fromDate: string,
+  toDate: string
+): Promise<{
+  appointments: AppointmentRecord[];
+  rules: AvailabilityRule[];
+  exceptions: AvailabilityException[];
+  clients: AgendaClientOption[];
+}> {
+  if (!hasValidServiceRoleKey()) {
+    return { appointments: [], rules: [], exceptions: [], clients: [] };
+  }
+  const admin = createSupabaseAdminClient();
+
+  const [apptsRes, rulesRes, excRes, clientsRes] = await Promise.all([
+    admin
+      .from("appointments")
+      .select(
+        "*, client:clients(id, first_name, last_name, email, phone, instagram_handle, is_new_client), staff:staff_members(id, name), items:appointment_items(*)"
+      )
+      .eq("business_id", businessId)
+      .gte("appointment_date", fromDate)
+      .lte("appointment_date", toDate)
+      .order("appointment_date", { ascending: true })
+      .order("start_time", { ascending: true }),
+    admin
+      .from("availability_rules")
+      .select("id, business_id, staff_id, day_of_week, start_time, end_time, is_active")
+      .eq("business_id", businessId)
+      .eq("is_active", true)
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true }),
+    admin
+      .from("availability_exceptions")
+      .select("id, business_id, staff_id, exception_date, exception_type, start_time, end_time, reason")
+      .eq("business_id", businessId)
+      .gte("exception_date", fromDate)
+      .lte("exception_date", toDate)
+      .order("exception_date", { ascending: true }),
+    admin
+      .from("clients")
+      .select("id, first_name, last_name, email, phone, instagram_handle, birth_date")
+      .eq("business_id", businessId)
+      .order("first_name", { ascending: true })
+      .limit(400),
+  ]);
+
+  return {
+    appointments: (apptsRes.data || []) as AppointmentRecord[],
+    rules: (rulesRes.data || []) as AvailabilityRule[],
+    exceptions: (excRes.data || []) as AvailabilityException[],
+    clients: (clientsRes.data || []) as AgendaClientOption[],
+  };
 }
 
 export async function getAdminScheduleSetup(businessId: string, staffId: string) {

@@ -414,7 +414,18 @@ export const CreateAdminAppointmentSchema = CreatePublicBookingSchema.extend({
   depositPaidClp: z.number().int().min(0).default(0),
   sendEmail: z.boolean().default(false),
   adminNotes: z.string().trim().max(500).optional().default(""),
+  allowOverride: z.boolean().default(false),
 });
+
+export interface AgendaClientOption {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  instagram_handle: string | null;
+  birth_date: string | null;
+}
 
 export const RescheduleAppointmentSchema = z.object({
   appointmentId: z.string().uuid(),

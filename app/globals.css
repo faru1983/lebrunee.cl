@@ -69,3 +69,50 @@ dialog::backdrop {
   border: 0 !important;
   white-space: nowrap !important;
 }
+
+/* Agenda Pro drag-and-drop & calendar patterns */
+html.agenda-dragging,
+html.agenda-dragging * {
+  cursor: grabbing !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.agenda-drag-handle {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.agenda-drag-handle:active {
+  cursor: grabbing;
+}
+
+.agenda-closed-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(195, 169, 183, 0.14),
+    rgba(195, 169, 183, 0.14) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.agenda-blocked-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(217, 119, 6, 0.14),
+    rgba(217, 119, 6, 0.14) 7px,
+    rgba(254, 243, 199, 0.45) 7px,
+    rgba(254, 243, 199, 0.45) 14px
+  );
+}
+
+/* Hide scrollbars cleanly on horizontal mobile toolbars */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -26,6 +26,8 @@ export default async function AdminTodayPage() {
   return (
     <AdminTodayClient
       today={dashboard.today}
+      businessName={bundle.business.name}
+      isAgendaOpen={bundle.bookingRules.isAgendaOpen}
       todayAppointments={dashboard.todayAppointments}
       pendingDeposit={dashboard.pendingDeposit}
       upcomingConfirmed={dashboard.upcomingConfirmed}
